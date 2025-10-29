@@ -119,7 +119,7 @@ This tight coupling made the code difficult to understand, maintain, and test.
 
 ### After Refactoring (Phase 2 Complete)
 - Main file: 1733 lines (40% reduction)
-- Header file: 565 lines (25% reduction)
+- Header file: 565 lines (26% reduction)
 - StatusMonitoringPanel: ~500 lines (separate file)
 - VisualizationManager: ~400 lines (separate file)
 - Core Planning: ~1733 lines (focused on planning)
@@ -128,7 +128,7 @@ This tight coupling made the code difficult to understand, maintain, and test.
 - Reusability: High (focused components)
 
 ### Improvements Achieved
-- **60% reduction** in main class size (2904 → 1733 lines)
+- **40% reduction** in main class size (2904 → 1733 lines)
 - **1364 total lines** removed from main codebase
 - **3 focused components** vs 1 monolithic class
 - **100% backward compatibility** maintained (no external API changes)
