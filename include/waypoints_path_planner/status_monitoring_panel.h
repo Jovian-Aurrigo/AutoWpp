@@ -215,6 +215,10 @@ private:
     uint8_t pod_state_;
     bool boot_safe_;
     
+    // State tracking for timer optimization
+    bool last_imu_state_on_;
+    bool last_lidar_state_on_;
+    
     QGridLayout* grid_layout_;
     
     // Callback functions

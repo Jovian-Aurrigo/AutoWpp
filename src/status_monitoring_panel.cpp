@@ -16,7 +16,8 @@ namespace waypoints_path_planner
 {
 
 StatusMonitoringPanel::StatusMonitoringPanel(ros::NodeHandle& nh, QGridLayout* layout)
-    : nh_(nh), grid_layout_(layout), pod_state_(0), boot_safe_(false)
+    : nh_(nh), grid_layout_(layout), pod_state_(0), boot_safe_(false),
+      last_imu_state_on_(false), last_lidar_state_on_(false)
 {
 }
 
@@ -295,7 +296,7 @@ void StatusMonitoringPanel::initializePixmaps()
     if (nh_.getParam("/bbr_ok_4_file", file_path)) {
         bbr_ok_4_.load(QString::fromStdString(file_path));
     }
-    if (nh_.getParam("/bbr_stop_file_", file_path)) {
+    if (nh_.getParam("/bbr_stop_file", file_path)) {
         bbr_stop_.load(QString::fromStdString(file_path));
     }
     
@@ -596,7 +597,7 @@ void StatusMonitoringPanel::systemMonitorCallback(const VehicleSystemMonitorMsg&
     time_from_system_monitor_ = ros::Time::now();
     
     if ((msg.GPUTemperature > 85) && (msg.CPU0TempCurrent > 70)) {
-        label_system_monitor_->setPixmap(cpu_temp_high_);
+        label_system_monitor_->setPixmap(gpu_temp_high_);
     } else if (msg.CPU0TempCurrent > 70) {
         label_system_monitor_->setPixmap(cpu_temp_high_);
     } else if (msg.GPUTemperature > 85) {
@@ -616,7 +617,7 @@ void StatusMonitoringPanel::bbrCallback(const VehicleBlackboxRecorderMsg& msg)
     if ((msg.BlackBoxSystemState == 0) && (msg.PercentFull <= 25)) {
         label_bbr_->setPixmap(bbr_ok_0_);
     } else if ((msg.BlackBoxSystemState == 0) && ((msg.PercentFull > 25) && (msg.PercentFull <= 50))) {
-        label_bbr_->setPixmap(bbr_ok_2_);
+        label_bbr_->setPixmap(bbr_ok_1_);
     } else if ((msg.BlackBoxSystemState == 0) && ((msg.PercentFull > 50) && (msg.PercentFull <= 75))) {
         label_bbr_->setPixmap(bbr_ok_3_);
     } else if ((msg.BlackBoxSystemState == 0) && ((msg.PercentFull > 75) && (msg.PercentFull <= 95))) {
@@ -678,11 +679,18 @@ void StatusMonitoringPanel::timerImu()
 {
     ros::Duration elapsed = ros::Time::now() - time_from_imu_;
     if (elapsed.sec > 1) {
-        label_imu_->setMovie(movie_imu_off_);
-        movie_imu_off_->start();
+        if (last_imu_state_on_ != false) {
+            label_imu_->setMovie(movie_imu_off_);
+            movie_imu_off_->start();
+            last_imu_state_on_ = false;
+        }
+        timer_imu_.stop();
     } else {
-        label_imu_->setMovie(movie_imu_on_);
-        movie_imu_on_->start();
+        if (last_imu_state_on_ != true) {
+            label_imu_->setMovie(movie_imu_on_);
+            movie_imu_on_->start();
+            last_imu_state_on_ = true;
+        }
     }
 }
 
@@ -726,9 +734,16 @@ void StatusMonitoringPanel::timerLidar()
 {
     ros::Duration elapsed = ros::Time::now() - time_from_lidar_;
     if (elapsed.sec > 1) {
-        label_lidar_->setPixmap(lidar_off_);
+        if (last_lidar_state_on_ != false) {
+            label_lidar_->setPixmap(lidar_off_);
+            last_lidar_state_on_ = false;
+        }
+        timer_lidar_.stop();
     } else {
-        label_lidar_->setPixmap(lidar_on_);
+        if (last_lidar_state_on_ != true) {
+            label_lidar_->setPixmap(lidar_on_);
+            last_lidar_state_on_ = true;
+        }
     }
 }
 
