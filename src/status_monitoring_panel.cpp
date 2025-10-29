@@ -359,7 +359,7 @@ void StatusMonitoringPanel::initializePixmaps()
     if (nh_.getParam("/gpu_temp_high_file", file_path)) {
         gpu_temp_high_.load(QString::fromStdString(file_path));
     }
-    if (nh_.getParam("ads_temp_high_file", file_path)) {
+    if (nh_.getParam("/ads_temp_high_file", file_path)) {
         ads_temp_high_.load(QString::fromStdString(file_path));
     }
     
@@ -596,12 +596,10 @@ void StatusMonitoringPanel::systemMonitorCallback(const VehicleSystemMonitorMsg&
     timer_system_monitor_.start();
     time_from_system_monitor_ = ros::Time::now();
     
-    if ((msg.GPUTemperature > 85) && (msg.CPU0TempCurrent > 70)) {
+    if (msg.GPUTemperature > 85) {
         label_system_monitor_->setPixmap(gpu_temp_high_);
     } else if (msg.CPU0TempCurrent > 70) {
         label_system_monitor_->setPixmap(cpu_temp_high_);
-    } else if (msg.GPUTemperature > 85) {
-        label_system_monitor_->setPixmap(gpu_temp_high_);
     } else {
         label_system_monitor_->setPixmap(ads_temp_ok_);
     }
@@ -619,7 +617,7 @@ void StatusMonitoringPanel::bbrCallback(const VehicleBlackboxRecorderMsg& msg)
     } else if ((msg.BlackBoxSystemState == 0) && ((msg.PercentFull > 25) && (msg.PercentFull <= 50))) {
         label_bbr_->setPixmap(bbr_ok_1_);
     } else if ((msg.BlackBoxSystemState == 0) && ((msg.PercentFull > 50) && (msg.PercentFull <= 75))) {
-        label_bbr_->setPixmap(bbr_ok_3_);
+        label_bbr_->setPixmap(bbr_ok_2_);
     } else if ((msg.BlackBoxSystemState == 0) && ((msg.PercentFull > 75) && (msg.PercentFull <= 95))) {
         label_bbr_->setPixmap(bbr_ok_4_);
     } else if ((msg.BlackBoxSystemState == 4) || (msg.BlackBoxSystemState == 7)) {
