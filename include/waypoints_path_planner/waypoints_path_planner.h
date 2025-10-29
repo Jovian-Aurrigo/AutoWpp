@@ -196,7 +196,6 @@ static std::string topic_prefix = "/adt3/";
 #include<waypoints_path_planner/waypoints_path_planner_panel_management.h>
 #include <waypoints_path_planner/waypointsfilepath.h>
 #include <waypoints_path_planner/status_monitoring_panel.h>
-#include <waypoints_path_planner/visualization_manager.h>
 
 //#include "car_like_planner_ros/PlannerSettings.h"
 //#include "car_like_planner_ros/carLocalPlanner.h"
@@ -358,7 +357,6 @@ private:
 
 	/* New Separated Components */
 	StatusMonitoringPanel* status_panel_;
-	VisualizationManager* viz_manager_;
 
 	QPushButton * load_waypoints_file_;
 	QPushButton * compute_segment_;
