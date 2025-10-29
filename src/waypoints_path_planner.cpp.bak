@@ -114,10 +114,20 @@ WaypointsPathPlanner::WaypointsPathPlanner (QWidget * parent): rviz::Panel(paren
 #ifdef VEH_TYPE_POD
 	pause_release_subscriber_through_xbox_controller_ = nh_.subscribe(topic_prefix+"av_to_ads_controller", 10, & WaypointsPathPlanner::pause_release_from_controller_callback, this);
 #endif
+	position_error_subscriber_ = nh_.subscribe("/vehicle_position_error", 1, & WaypointsPathPlanner::vehicle_position_error_callback, this);
 	is_local_goal_reached_subscriber_ = nh_.subscribe("/is_local_goal_reached", 1, & WaypointsPathPlanner::is_local_goal_reached_callback, this);
+	is_av_navigating_subscriber_ = nh_.subscribe("/isPodNavigating", 10, & WaypointsPathPlanner::is_av_navigating_callback, this); // change topic name
 	localization_pose_subscriber_ = nh_.subscribe("/pose/fused", 10, & WaypointsPathPlanner::localization_pose_callback, this);
 	gps_pose_subscriber_ = nh_.subscribe("/odometry/filtered", 10, & WaypointsPathPlanner::gps_pod_pose_callback, this);
 	stop_requested_subscriber_ = nh_.subscribe("/stop_requested", 1, & WaypointsPathPlanner::av_stop_request_callback, this);
+	dms_handle_on_off_subscriber_ = nh_.subscribe("/DM_Speed_Reduction_Factor_Message", 10, & WaypointsPathPlanner::dms_status_callback, this);
+	microstrain_imu_subscriber_ = nh_.subscribe("/gx5/imu/data", 1000, & WaypointsPathPlanner::micro_imu_callback, this);
+	merged_point_cloud_subscriber_ = nh_.subscribe("/points_concat", 100, & WaypointsPathPlanner::merged_cloud_callback, this);
+	time_machine_subscriber_ = nh_.subscribe("/Timemachine_Info", 10, & WaypointsPathPlanner::time_machine_callback, this);
+	system_monitor_subscriber_ = nh_.subscribe("/aurrigo_System_Monitor", 10, & WaypointsPathPlanner::system_monitor_callback, this);
+	bbr_recorder_subscriber_ = nh_.subscribe("/BlackBox_Info", 10, & WaypointsPathPlanner::black_box_recorder_callback, this);
+	pod_to_acs_core_subscriber_ = nh_.subscribe(topic_prefix+"av_to_ads_core", 10, & WaypointsPathPlanner::pod_to_acs_core_callback, this);
+	pod_to_acs_aux_subscriber_ = nh_.subscribe(topic_prefix+"av_to_ads_aux", 10, & WaypointsPathPlanner::av_to_ads_aux_callback, this);
 	current_waypoint_index_subscriber_ = nh_.subscribe("/current_waypoint_index", 10, &WaypointsPathPlanner::current_waypoint_index_callback, this);
 	global_map_path_subscriber_ = nh_.subscribe("/map_file_path",10,&WaypointsPathPlanner::global_map_path_callback, this);
 	end_of_route_subscriber_ = nh_.subscribe("/end_of_route", 1, &WaypointsPathPlanner::end_of_route_subscriber_callback, this);
@@ -140,6 +150,30 @@ WaypointsPathPlanner::WaypointsPathPlanner (QWidget * parent): rviz::Panel(paren
 	file_path_publisher_ = nh_.advertise <waypoints_path_planner::waypointsfilepath>("/waypoints_file_path", 1, true);
 
 
+
+	/*Timers*/
+	timer_for_vehicle_position_error_status_ = nh_.createTimer(ros::Duration(1), boost::bind( & WaypointsPathPlanner::timer_for_vehicle_position_error, this));
+	timer_for_vehicle_position_error_status_.start();
+	timer_for_navigation_status_ = nh_.createTimer(ros::Duration(1), boost::bind( & WaypointsPathPlanner::timer_for_navigation_callback, this));
+	timer_for_navigation_status_.start();
+	timer_for_battery_status_ = nh_.createTimer(ros::Duration(1), boost::bind( & WaypointsPathPlanner::timer_for_pod_to_acs_core_callback, this));
+	timer_for_battery_status_.start();
+	timer_for_dms_handle_status_ = nh_.createTimer(ros::Duration(1), boost::bind( & WaypointsPathPlanner::timer_for_dms_handle_callback, this));
+	timer_for_dms_handle_status_.start();
+	//timer_for_gps_fix_on_off_=nh.createTimer(ros::Duration(1), boost::bind (&InteractiveWaypoints::timerforGPSfixCallback,this));
+	//timer_for_gps_fix_on_off_.start();
+	timer_for_imu_fix_on_off_ = nh_.createTimer(ros::Duration(1), boost::bind( & WaypointsPathPlanner::timer_for_imu_callback, this));
+	timer_for_imu_fix_on_off_.start();
+	timer_for_bbr_status_ = nh_.createTimer(ros::Duration(1), boost::bind( & WaypointsPathPlanner::timer_for_bbr_callback, this));
+	timer_for_bbr_status_.start();
+	timer_for_time_machine_status_ = nh_.createTimer(ros::Duration(1), boost::bind( & WaypointsPathPlanner::timer_for_time_machine_callback, this));
+	timer_for_time_machine_status_.start();
+	timer_for_system_monitor_status_ = nh_.createTimer(ros::Duration(1), boost::bind( & WaypointsPathPlanner::timer_for_system_monitor_callback, this));
+	timer_for_system_monitor_status_.start();
+	timer_for_loading_arms_status_ = nh_.createTimer(ros::Duration(1), boost::bind( & WaypointsPathPlanner::timer_for_loading_arms_callback, this));
+	timer_for_loading_arms_status_.start();
+	timer_for_lidar_status_on_off_ = nh_.createTimer(ros::Duration(1), boost::bind( & WaypointsPathPlanner::timer_for_lidar_status_callback, this));
+	timer_for_lidar_status_on_off_.start();
 
 	/* get parameters via the nodehandle and override the default config of car planner*/
 
@@ -435,6 +469,326 @@ WaypointsPathPlanner::WaypointsPathPlanner (QWidget * parent): rviz::Panel(paren
 	/* Initialize Status Monitoring Panel */
 	status_panel_ = new StatusMonitoringPanel(nh_, gridLayout);
 	status_panel_->initialize();
+
+	/* Message QEditline */
+
+	debug_message_edit_ = new QTextEdit;
+	gridLayout -> addWidget(debug_message_edit_, 23, 0, 1, 4);
+	debug_message_edit_ -> setFixedSize(600, 50);
+
+	setLayout(gridLayout);
+
+
+	/*is_rviz_locked_unlocked_.data = true;
+	lock_unlock_rviz_status_publisher_.publish(is_rviz_locked_unlocked_);*/
+
+	/*General waypoints path planner function calls*/
+
+	publish_waypoint_paths();
+	label_battery_default_ -> setVisible(true);
+	gridLayout -> addWidget(label_battery_default_, 18, 0, 1, 1);
+	nh_.getParam("/battery_unknown_file", battery_unknown_file_);
+	qbattery_unknown_file_ = battery_unknown_file_.data();
+	movie_battery_unknown_ = new QMovie(qbattery_unknown_file_);
+	//movie_battery_unknown__->setScaledSize(QSize(80,50));
+	label_battery_default_ -> setMovie(movie_battery_unknown_);
+	//label_battery_default_->setScaledContents( true );
+	//label_battery_default_->setSizePolicy( QSizePolicy::Preferred, QSizePolicy::Preferred );
+	movie_battery_unknown_ -> start();
+	nh_.getParam("/battery_charging_file", battery_charging_file_);
+	qbattery_charging_file_=battery_charging_file_.data();
+	movie_battery_charging_ = new QMovie(qbattery_charging_file_);
+	nh_.getParam("/battery_depleted_file", battery_depleted_file_);
+	qbattery_depleted_file_=battery_depleted_file_.data();
+	movie_battery_depleated_ = new QMovie(qbattery_depleted_file_);
+	nh_.getParam("/battery_full_file",battery_full_file_);
+	qbattery_full_file_=battery_full_file_.data();
+	movie_battery_full_ = new QMovie(qbattery_full_file_);
+	nh_.getParam("/battery_half_file", battery_half_file);
+	qbattery_half_file=battery_half_file.data();
+	movie_battery_half_ = new QMovie(qbattery_half_file);
+	nh_.getParam("/battery_quarter_file", battery_quarter_file_);
+	qbattery_quarter_file_=battery_quarter_file_.data();
+	movie_battery_quarter_ = new QMovie(qbattery_quarter_file_);
+	nh_.getParam("/battery_three_quarter_file", battery_three_quarter_file_);
+	qbattery_three_quarter_file_=battery_three_quarter_file_.data();
+	movie_battery_three_quarter_ = new QMovie(qbattery_three_quarter_file_);
+	nh_.getParam("/battery_charger_plugged_in_file", battery_charger_plugged_in_file_);
+	qbattery_charger_plugged_in_file_=battery_charger_plugged_in_file_.data();
+	movie_battery_full_plugged_in_ = new QMovie(qbattery_charger_plugged_in_file_);
+
+	/* Autonomy status label */
+
+	label_autonomy_enable_disable_ = new QLabel;
+	label_autonomy_enable_disable_ -> setAlignment(Qt::AlignLeft);
+	label_autonomy_enable_disable_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	label_autonomy_enable_disable_ -> setWordWrap(true);
+	label_autonomy_enable_disable_ -> setFont(QFont("FreeSans", 72));
+	label_autonomy_enable_disable_ -> setVisible(true);
+	gridLayout -> addWidget(label_autonomy_enable_disable_, 18, 1, 1, 1);
+	nh_.getParam("/autonomy_switch_unknown_file", autonomy_switch_unknown_file_);
+	qautonomy_switch_unknown_file_=autonomy_switch_unknown_file_.data();
+	movie_autonomy_enable_on_off_unknown_ = new QMovie(qautonomy_switch_unknown_file_);
+	label_autonomy_enable_disable_ -> setMovie(movie_autonomy_enable_on_off_unknown_);
+	movie_autonomy_enable_on_off_unknown_ -> start();
+	nh_.getParam("/autonomy_switch_on_file", autonomy_switch_on_file_);
+	qautonomy_switch_on_file_=autonomy_switch_on_file_.data();
+	movie_autonomy_enable_on_ = new QMovie(qautonomy_switch_on_file_);
+	nh_.getParam("/autonomy_switch_off_file", autonomy_switch_off_file_);
+	qautonomy_switch_off_file_=autonomy_switch_off_file_.data();
+	movie_autonomy_enable_off_ = new QMovie(qautonomy_switch_off_file_);
+
+	/* Dms on/off status label */
+
+	label_dms_on_off_ = new QLabel;
+	label_dms_on_off_ -> setAlignment(Qt::AlignLeft);
+	label_dms_on_off_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	label_dms_on_off_ -> setWordWrap(true);
+	label_dms_on_off_ -> setFont(QFont("FreeSans", 72));
+	label_dms_on_off_ -> setVisible(true);
+	gridLayout -> addWidget(label_dms_on_off_, 18, 2, 1, 1);
+	nh_.getParam("/dms_unknown_file", dms_unknown_file_);
+	qdms_unknown_file_=dms_unknown_file_.data();
+	movie_dms_on_off_unknown_ = new QMovie(qdms_unknown_file_);
+	label_dms_on_off_ -> setMovie(movie_dms_on_off_unknown_);
+	movie_dms_on_off_unknown_ -> start();
+	nh_.getParam("/dms_not_initialised_file",dms_not_initialised_file_);
+	qdms_not_initialised_file_=dms_not_initialised_file_.data();
+	movie_dms_on_off_uninitialised_ = new QMovie(qdms_not_initialised_file_);
+	nh_.getParam("/dms_not_armed_file",dms_not_armed_file_);
+	qdms_not_armed_file_=dms_not_armed_file_.data();
+	movie_dms_off_ = new QMovie(qdms_not_armed_file_);
+	nh_.getParam("/dms_armed_file", dms_armed_file_);
+	qdms_armed_file_=dms_armed_file_.data();
+	movie_dms_on_ = new QMovie(qdms_armed_file_);
+	//movie_battery_removed_=new QMovie("/home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/interactive_waypoints/resources/DMS/DMS Armed.gif");
+
+	/* Dtp on/off status label */
+
+	bool s;
+	nh_.getParam("/vehicle_communication/ACS_endpoint_safety_enabled", s);
+
+	label_dtp_on_off_ = new QLabel;
+	label_dtp_on_off_ -> setAlignment(Qt::AlignLeft);
+	label_dtp_on_off_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	label_dtp_on_off_ -> setWordWrap(true);
+	label_dtp_on_off_ -> setFont(QFont("FreeSans", 72));
+	label_dtp_on_off_ -> setVisible(true);
+	gridLayout -> addWidget(label_dtp_on_off_, 18, 3, 1, 1);
+	nh_.getParam("/dtp_unknown_file", dtp_unknown_file_);
+	qdtp_unknown_file_=dtp_unknown_file_.data();
+	movie_dtp_on_off_unknown_ = new QMovie(qdtp_unknown_file_);
+	label_dtp_on_off_ -> setMovie(movie_dtp_on_off_unknown_);
+	movie_dtp_on_off_unknown_ -> start();
+	nh_.getParam("/dtp_on_file", dtp_on_file_);
+	qdtp_on_file_= dtp_on_file_.data();
+	movie_dtp_on_ = new QMovie(qdtp_on_file_);
+	nh_.getParam("/dtp_off_file", dtp_off_file_);
+	qdtp_off_file_=dtp_off_file_.data();
+	movie_dtp_off_ = new QMovie(qdtp_off_file_);
+	if (s == true) {
+		label_dtp_on_off_ -> setMovie(movie_dtp_on_);
+		movie_dtp_on_ -> start();
+	} else if (s == false) {
+		label_dtp_on_off_ -> setMovie(movie_dtp_off_);
+		movie_dtp_off_ -> start();
+	} else {
+		label_dtp_on_off_ -> setMovie(movie_dtp_on_off_unknown_);
+		movie_dtp_on_off_unknown_ -> start();
+	}
+
+	/* Imu fix on/off status label */
+
+	label_imu_fix_on_off_ = new QLabel;
+	label_imu_fix_on_off_ -> setAlignment(Qt::AlignLeft);
+	label_imu_fix_on_off_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	label_imu_fix_on_off_ -> setWordWrap(true);
+	label_imu_fix_on_off_ -> setFont(QFont("FreeSans", 72));
+	label_imu_fix_on_off_ -> setVisible(true);
+	gridLayout -> addWidget(label_imu_fix_on_off_, 20, 0, 1, 1);
+	nh_.getParam("/imu_not_connected_file", imu_not_connected_file_);
+	qimu_not_connected_file_=imu_not_connected_file_.data();
+	movie_imu_fix_off_ = new QMovie(qimu_not_connected_file_);
+	label_imu_fix_on_off_ -> setMovie(movie_imu_fix_off_);
+	movie_imu_fix_off_ -> start();
+	nh_.getParam("/imu_connected_file", imu_connected_file_);
+	qimu_connected_file_=imu_connected_file_.data();
+	movie_imu_fix_on_ = new QMovie(qimu_connected_file_);
+
+	/* BBR status label */
+
+	label_bbr_status_ = new QLabel;
+	label_bbr_status_ -> setAlignment(Qt::AlignLeft);
+	label_bbr_status_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	label_bbr_status_ -> setWordWrap(true);
+	label_bbr_status_ -> setFont(QFont("FreeSans", 72));
+	label_bbr_status_ -> setVisible(true);
+	gridLayout -> addWidget(label_bbr_status_, 20, 1, 1, 1);
+	nh_.getParam("/bbr_unknown_file", bbr_unknown_file_);
+	qbbr_unknown_file_=bbr_unknown_file_.data();
+	bbr_unknown_.load(qbbr_unknown_file_);
+	label_bbr_status_ -> setPixmap(bbr_unknown_);
+	label_bbr_status_ -> show();
+
+	nh_.getParam("/bbr_full_file", bbr_full_file_);
+	qbbr_full_file_=bbr_full_file_.data();
+	movie_bbr_full_ = new QMovie(qbbr_full_file_);
+	nh_.getParam("/bbr_no_drive_in_bay_file", bbr_no_drive_in_bay_file_);
+	qbbr_no_drive_in_bay_file_=bbr_no_drive_in_bay_file_.data();
+	movie_bbr_no_drive_in_bay_ = new QMovie(qbbr_no_drive_in_bay_file_);
+	nh_.getParam("/bbr_ok_0_file", bbr_ok_0_file_);
+	qbbr_ok_0_file_=bbr_ok_0_file_.data();
+	bbr_ok_0_.load(qbbr_ok_0_file_);
+	nh_.getParam("/bbr_ok_1_file", bbr_ok_1_file_);
+	qbbr_ok_1_file_=bbr_ok_1_file_.data();
+	bbr_ok_1_.load(qbbr_ok_1_file_);
+	nh_.getParam("/bbr_ok_2_file", bbr_ok_2_file_);
+	qbbr_ok_2_file_=bbr_ok_2_file_.data();
+	bbr_ok_2_.load(qbbr_ok_2_file_);
+	nh_.getParam("/bbr_ok_3_file", bbr_ok_3_file_);
+	qbbr_ok_3_file_=bbr_ok_3_file_.data();
+	bbr_ok_3_.load(qbbr_ok_3_file_);
+	nh_.getParam("/bbr_ok_4_file", bbr_ok_4_file_);
+	qbbr_ok_4_file_=bbr_ok_4_file_.data();
+	bbr_ok_4_.load(qbbr_ok_4_file_);
+	nh_.getParam("/bbr_stop_file_", bbr_stop_file_);
+	qbbr_stop_file_=bbr_stop_file_.data();
+	bbr_stop_.load(qbbr_stop_file_);
+
+	/* Time machine status label */
+
+	label_time_machine_ = new QLabel;
+	label_time_machine_ -> setAlignment(Qt::AlignLeft);
+	label_time_machine_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	label_time_machine_ -> setWordWrap(true);
+	label_time_machine_ -> setFont(QFont("FreeSans", 72));
+	label_time_machine_ -> setVisible(true);
+	gridLayout -> addWidget(label_time_machine_, 20, 2, 1, 1);
+	nh_.getParam("/time_machine_error_file", time_machine_error_file_);
+	qtime_machine_error_file_=time_machine_error_file_.data();
+	time_machine_error_.load(qtime_machine_error_file_);
+	label_time_machine_ -> setPixmap(time_machine_error_);
+	label_time_machine_ -> show();
+	nh_.getParam("/time_machine_ready_file", time_machine_ready_file_);
+	qtime_machine_ready_file_=time_machine_ready_file_.data();
+	movie_time_machine_ready_ = new QMovie(qtime_machine_ready_file_);
+	nh_.getParam("/time_machine_writing_file", time_machine_writing_file_);
+	qtime_machine_writing_file_=time_machine_writing_file_.data();
+	movie_time_machine_writing_ = new QMovie(qtime_machine_writing_file_);
+
+	/* Lidar status label */
+
+	label_lidar_status_ = new QLabel;
+	label_lidar_status_ -> setAlignment(Qt::AlignLeft);
+	label_lidar_status_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	label_lidar_status_ -> setWordWrap(true);
+	label_lidar_status_ -> setFont(QFont("FreeSans", 72));
+	label_lidar_status_ -> setVisible(true);
+	gridLayout -> addWidget(label_lidar_status_, 20, 3, 1, 1);
+	nh_.getParam("/lidar_not_connected_file", lidar_not_connected_file_);
+	qlidar_not_connected_file_=lidar_not_connected_file_.data();
+	lidar_status_off_.load(qlidar_not_connected_file_);
+	label_lidar_status_ -> setPixmap(lidar_status_off_);
+	label_lidar_status_ -> show();
+	nh_.getParam("/lidar_connected_file", lidar_connected_file_);
+	qlidar_connected_file_=lidar_connected_file_.data();
+	lidar_status_on_.load(qlidar_connected_file_);
+
+	/* Navigation status label */
+
+	navigation_image_label_ = new QLabel;
+	navigation_image_label_ -> setAlignment(Qt::AlignLeft);
+	navigation_image_label_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	navigation_image_label_ -> setWordWrap(true);
+	navigation_image_label_ -> setFont(QFont("FreeSans", 72));
+	navigation_image_label_ -> setVisible(true);
+	gridLayout -> addWidget(navigation_image_label_, 22, 0, 1, 1);
+	nh_.getParam("/navigation_unknown_file",navigation_unknown_file_);
+	qnavigation_unknown_file_=navigation_unknown_file_.data();
+	navigation_unknown_.load(qnavigation_unknown_file_);
+	navigation_image_label_ -> setPixmap(navigation_unknown_);
+	navigation_image_label_ -> show();
+	nh_.getParam("/navigation_paused_file", navigation_paused_file_);
+	qnavigation_paused_file_=navigation_paused_file_.data();
+	navigation_paused_.load(qnavigation_paused_file_);
+	nh_.getParam("/navigation_stopped_file", navigation_stopped_file_);
+	qnavigation_stopped_file_=navigation_stopped_file_.data();
+	navigation_stopped_.load(qnavigation_stopped_file_);
+	nh_.getParam("/navigation_running_file", navigation_running_file_);
+	qnavigation_running_file_=navigation_running_file_.data();
+	navigation_running_.load(qnavigation_running_file_);
+
+	/* Covariance status label */
+
+	covariance_image_label_ = new QLabel;
+	covariance_image_label_ -> setAlignment(Qt::AlignLeft);
+	covariance_image_label_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	covariance_image_label_ -> setWordWrap(true);
+	covariance_image_label_ -> setFont(QFont("FreeSans", 72));
+	covariance_image_label_ -> setVisible(true);
+	gridLayout -> addWidget(covariance_image_label_, 22, 1, 1, 1);
+	nh_.getParam("/covariance_unknown_file", covariance_unknown_file_);
+	qcovariance_unknown_file_=covariance_unknown_file_.data();
+	covariance_unknown_.load(qcovariance_unknown_file_);
+	covariance_image_label_ -> setPixmap(covariance_unknown_);
+	covariance_image_label_ -> show();
+	nh_.getParam("/covariance_ok_file", covariance_ok_file_);
+	qcovariance_ok_file_=covariance_ok_file_.data();
+	covariance_good_.load(qcovariance_ok_file_);
+	nh_.getParam("/covariance_error_file", covariance_error_file_);
+	qcovariance_error_file_=covariance_error_file_.data();
+	covariance_error_.load(qcovariance_error_file_);
+	nh_.getParam("/covariance_poor_file", covariance_poor_file_);
+	qcovariance_poor_file_=covariance_poor_file_.data();
+	covariance_poor_.load(qcovariance_poor_file_);
+
+	/* System monitor status label */
+
+	label_system_monitor_ = new QLabel;
+	label_system_monitor_ -> setAlignment(Qt::AlignLeft);
+	label_system_monitor_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	label_system_monitor_ -> setWordWrap(true);
+	label_system_monitor_ -> setFont(QFont("FreeSans", 72));
+	label_system_monitor_ -> setVisible(true);
+	gridLayout -> addWidget(label_system_monitor_, 22, 2, 1, 1);
+	nh_.getParam("/ads_temp_unknown_file", ads_temp_unknown_file_);
+	qads_temp_unknown_file_=ads_temp_unknown_file_.data();
+	ads_temp_unknown_.load(qads_temp_unknown_file_);
+	label_system_monitor_ -> setPixmap(ads_temp_unknown_);
+	label_system_monitor_ -> show();
+	nh_.getParam("/ads_temp_ok", ads_temp_ok_file_);
+	qads_temp_ok_file_=ads_temp_ok_file_.data();
+	ads_temp_ok_.load(qads_temp_ok_file_);
+	nh_.getParam("/cpu_temp_high", cpu_temp_high_file_);
+	qcpu_temp_high_file_=cpu_temp_high_file_.data();
+	cpu_temp_high_.load(qcpu_temp_high_file_);
+	nh_.getParam("/gpu_temp_high_file", gpu_temp_high_file_);
+	qgpu_temp_high_file_=gpu_temp_high_file_.data();
+	gpu_temp_high_.load(qgpu_temp_high_file_);
+	nh_.getParam("ads_temp_high_file", ads_temp_high_file_);
+	qads_temp_high_file_=ads_temp_high_file_.data();
+	ads_temp_high_.load(qads_temp_high_file_);
+
+	/* Loading arms status label */
+
+	label_loading_arms_ = new QLabel;
+	label_loading_arms_ -> setAlignment(Qt::AlignLeft);
+	label_loading_arms_ -> setStyleSheet("font-weight: bold;color: black; font-size:14pt");
+	label_loading_arms_ -> setWordWrap(true);
+	label_loading_arms_ -> setFont(QFont("FreeSans", 72));
+	label_loading_arms_ -> setVisible(true);
+	gridLayout -> addWidget(label_loading_arms_, 22, 3, 1, 1);
+	nh_.getParam("/loading_arms_unknown_file", loading_arms_unknown_file_);
+	qloading_arms_unknown_file_=loading_arms_unknown_file_.data();
+	loading_arms_unknown_.load(qloading_arms_unknown_file_);
+	label_loading_arms_ -> setPixmap(loading_arms_unknown_);
+	label_loading_arms_ -> show();
+	nh_.getParam("/loading_arms_deployed_file", loading_arms_deployed_file_);
+	qloading_arms_deployed_file_=loading_arms_deployed_file_.data();
+	loading_arms_deployed_.load(qloading_arms_deployed_file_);
+	nh_.getParam("/loading_arms_retracted_file", loading_arms_retracted_file_);
+	qloading_arms_retracted_file_=loading_arms_retracted_file_.data();
+	loading_arms_retracted_.load(qloading_arms_retracted_file_);
 
 	/* Message QEditline */
 
@@ -1731,3 +2085,814 @@ void WaypointsPathPlanner::dynamic_alignment_callback(waypoints_path_planner::wa
 	update_waypoint_dynamically(msg.index, msg.waypointpose.position.x, msg.waypointpose.position.y);
 	start_navigation_->click();
 }
+void WaypointsPathPlanner::black_box_recorder_callback(VehicleBlackboxRecorderMsg msg) {
+	std::cout << "Im in Callback BBR" << std::endl;
+	timer_for_bbr_status_.start();
+	time_from_bbr_status_ = ros::Time::now();
+
+	boot_safe = msg.BootSafe;
+
+	if ((msg.BlackBoxSystemState == 0) && (msg.PercentFull <= 25)) {
+		label_bbr_status_ -> setPixmap(bbr_ok_0_);
+		label_bbr_status_ -> show();
+	} else if ((msg.BlackBoxSystemState == 0) && ((msg.PercentFull > 25) && (msg.PercentFull <= 50))) {
+		label_bbr_status_ -> setPixmap(bbr_ok_2_);
+		label_bbr_status_ -> show();
+	} else if ((msg.BlackBoxSystemState == 0) && ((msg.PercentFull > 50) && (msg.PercentFull <= 75))) {
+		label_bbr_status_ -> setPixmap(bbr_ok_3_);
+		label_bbr_status_ -> show();
+	} else if ((msg.BlackBoxSystemState == 0) && ((msg.PercentFull > 75) && (msg.PercentFull <= 95))) {
+		label_bbr_status_ -> setPixmap(bbr_ok_4_);
+		label_bbr_status_ -> show();
+	} else if ((msg.BlackBoxSystemState == 4) || (msg.BlackBoxSystemState == 7)) {
+		label_bbr_status_ -> setPixmap(bbr_stop_);
+		label_bbr_status_ -> show();
+	} else if (msg.BlackBoxSystemState == 5) {
+		label_bbr_status_ -> setMovie(movie_bbr_no_drive_in_bay_);
+		movie_bbr_no_drive_in_bay_ -> start();
+
+	} else if (msg.BlackBoxSystemState == 6) {
+		label_bbr_status_ -> setMovie(movie_bbr_full_);
+		movie_bbr_full_ -> start();
+	}
+
+}
+void WaypointsPathPlanner::av_to_ads_aux_callback(VehicleAVToADSAUXMsg msg) {
+	timer_for_battery_status_.start();
+	time_from_the_pod_to_acs_aux_ = ros::Time::now();
+	if ((pod_state_msg_ == (uint8_t) 13) && (msg.StateOfCharge < 95)) {
+		label_battery_default_ -> setMovie(movie_battery_charging_);
+		movie_battery_charging_ -> start();
+	} else if ((msg.StateOfCharge >= 95) && (pod_state_msg_ == (uint8_t) 13)) {
+		label_battery_default_ -> setMovie(movie_battery_full_plugged_in_);
+		movie_battery_full_plugged_in_ -> start();
+	} else if (msg.StateOfCharge >= 76) {
+		label_battery_default_ -> setMovie(movie_battery_full_);
+		movie_battery_full_ -> start();
+	} else if ((msg.StateOfCharge > 50) && (msg.StateOfCharge <= 75)) {
+		label_battery_default_ -> setMovie(movie_battery_three_quarter_);
+		movie_battery_three_quarter_ -> start();
+	} else if ((msg.StateOfCharge > 25) && (msg.StateOfCharge <= 50)) {
+		label_battery_default_ -> setMovie(movie_battery_half_);
+		movie_battery_half_ -> start();
+	} else if ((msg.StateOfCharge > 5) && (msg.StateOfCharge <= 25)) {
+		label_battery_default_ -> setMovie(movie_battery_quarter_);
+		movie_battery_quarter_ -> start();
+	} else if (msg.StateOfCharge <= 5) {
+		label_battery_default_ -> setMovie(movie_battery_depleated_);
+		movie_battery_depleated_ -> start();
+	}
+	if (msg.AutonomyEnableSwitchState == true) {
+		label_autonomy_enable_disable_ -> setMovie(movie_autonomy_enable_on_);
+		movie_autonomy_enable_on_ -> start();
+	} else if (msg.AutonomyEnableSwitchState == false) {
+		label_autonomy_enable_disable_ -> setMovie(movie_autonomy_enable_off_);
+		movie_autonomy_enable_off_ -> start();
+	}
+}
+void WaypointsPathPlanner::pod_to_acs_core_callback(VehicleAVToADSCOREMsg msg) {
+	timer_for_battery_status_.start();
+	time_from_the_pod_to_acs_core_ = ros::Time::now();
+	//if(msg.PodState==(uint8_t)13)
+	//	{
+	//		label_battery_default_->setMovie(movie_battery_charging_);
+	//		movie_battery_charging_->start();
+	//	}
+	pod_state_msg_ = (uint8_t) msg.AvState;
+}
+void WaypointsPathPlanner::time_machine_callback(VehicleTimeMachineMsg msg) {
+	timer_for_time_machine_status_.start();
+	time_from_time_machine_status_ = ros::Time::now();
+	if (msg.TimeMachineSystemState == (uint8_t) 0) {
+		label_time_machine_ -> setMovie(movie_time_machine_ready_);
+		movie_time_machine_ready_ -> start();
+	} else if (msg.TimeMachineSystemState == (uint8_t) 2) {
+		label_time_machine_ -> setMovie(movie_time_machine_writing_);
+		movie_time_machine_writing_ -> start();
+	} else {
+		label_time_machine_ -> setPixmap(time_machine_error_);
+		label_time_machine_ -> show();
+	}
+}
+void WaypointsPathPlanner::system_monitor_callback(VehicleSystemMonitorMsg msg) {
+	timer_for_system_monitor_status_.start();
+	time_from_system_monitor_status_ = ros::Time::now();
+	if ((msg.GPUTemperature > 85) && (msg.CPU0TempCurrent > 70)) {
+		label_system_monitor_ -> setPixmap(cpu_temp_high_);
+	} else if (msg.CPU0TempCurrent > 70) {
+		label_system_monitor_ -> setPixmap(cpu_temp_high_);
+	} else if (msg.GPUTemperature > 85) {
+		label_system_monitor_ -> setPixmap(gpu_temp_high_);
+	} else {
+		label_system_monitor_ -> setPixmap(ads_temp_ok_);
+	}
+}
+void WaypointsPathPlanner::merged_cloud_callback(sensor_msgs::PointCloud2 msg) {
+	timer_for_lidar_status_on_off_.start();
+	time_from_lidar_status_ = ros::Time::now();
+	label_lidar_status_ -> setPixmap(lidar_status_on_);
+	label_lidar_status_ -> show();
+}
+void WaypointsPathPlanner::micro_imu_callback(sensor_msgs::Imu msg) {
+	timer_for_imu_fix_on_off_.start();
+	time_from_imu_status_ = ros::Time::now();
+	label_imu_fix_on_off_ -> setMovie(movie_imu_fix_on_);
+	movie_imu_fix_on_ -> start();
+}
+void WaypointsPathPlanner::dms_status_callback(VehicleDMSStatusMsg msg) {
+	timer_for_dms_handle_status_.start();
+	time_from_dms_status_ = ros::Time::now();
+	if (msg.state == (uint8_t) 0) {
+		label_dms_on_off_ -> setMovie(movie_dms_on_off_uninitialised_);
+		movie_dms_on_off_uninitialised_ -> start();
+	}
+	/*else if(msg.state>(uint8_t)0)
+    {
+    	label_dms_on_off_->setMovie(movie_dms_off_);
+    	movie_dms_off_->start();
+    }*/
+	else if (msg.state > (uint8_t) 0) {
+		label_dms_on_off_ -> setMovie(movie_dms_on_);
+		movie_dms_on_ -> start();
+	}
+}
+void WaypointsPathPlanner::av_stop_request_callback(std_msgs::Bool stop)
+{
+	wpplm.cancel_av_navigation_process();
+}
+void WaypointsPathPlanner::localization_pose_callback(geometry_msgs::PoseWithCovarianceStamped pose) {
+	check_localization_pose_ = true;
+	geometry_msgs::Pose temp_pose;
+
+	adt_x = pose.pose.pose.position.x;
+	adt_y = pose.pose.pose.position.y;
+	temp_pose.position.x = vehicle_pose_.pose.position.x = pose.pose.pose.position.x;
+	temp_pose.position.y =vehicle_pose_.pose.position.y = pose.pose.pose.position.y;
+	temp_pose.position.z =vehicle_pose_.pose.position.z = 0;
+	temp_pose.orientation.z = vehicle_pose_.pose.orientation.z = pose.pose.pose.orientation.z;
+	temp_pose.orientation.w =vehicle_pose_.pose.orientation.w = pose.pose.pose.orientation.w;
+	temp_pose.orientation.x =vehicle_pose_.pose.orientation.x = 0;
+	temp_pose.orientation.y =vehicle_pose_.pose.orientation.y = 0;
+	distance_from_home_ = wpplm.calculate_distance_between_two_points(home_pose_, temp_pose);
+}
+void WaypointsPathPlanner::gps_pod_pose_callback(nav_msgs::Odometry gps_pose) {
+	check_gps_pod_pose_ = true;
+	geometry_msgs::Pose temp_pose;
+	temp_pose.position.x = vehicle_pose_from_gps_.pose.position.x = gps_pose.pose.pose.position.x;
+	temp_pose.position.y = vehicle_pose_from_gps_.pose.position.y = gps_pose.pose.pose.position.y;
+	temp_pose.position.z = vehicle_pose_from_gps_.pose.position.z = 0;
+	temp_pose.orientation.x = vehicle_pose_from_gps_.pose.orientation.x = 0;
+	temp_pose.orientation.y = vehicle_pose_from_gps_.pose.orientation.y = 0;
+	temp_pose.orientation.z = vehicle_pose_from_gps_.pose.orientation.z = gps_pose.pose.pose.orientation.z;
+	temp_pose.orientation.w = vehicle_pose_from_gps_.pose.orientation.w = gps_pose.pose.pose.orientation.w;
+	distance_from_home_ = wpplm.calculate_distance_between_two_points(home_pose_, temp_pose);
+}
+void WaypointsPathPlanner::is_av_navigating_callback(std_msgs::Bool msg) {
+	timer_for_navigation_status_.start();
+	time_from_navigation_status_ = ros::Time::now();
+	is_av_navigating_msg_.data = msg.data;
+	if (is_av_navigating_msg_.data == true) {
+		navigation_image_label_ -> setPixmap(navigation_running_);
+	} else if (is_av_navigating_msg_.data == false) {
+		navigation_image_label_ -> setPixmap(navigation_stopped_);
+	} else if ((is_av_navigating_msg_.data == false) && (pause_set_.data == true)) {
+		navigation_image_label_ -> setPixmap(navigation_paused_);
+	}
+}
+void WaypointsPathPlanner::current_vehiclepose_from_localplanner_callback(waypoints_path_planner::currentpodposewithtrajectoryln msg){
+	line_number_of_vehicle_pose_in_the_global_plan_ = msg.linenumber; //variable changed
+	current_vehicle_pose_from_local_planner_ = msg.pose;
+}
+void WaypointsPathPlanner::detailed_route_from_globalplanner_callback(const std_msgs::String::ConstPtr & msg){
+	if (msg != NULL) {
+		is_filepath_received = true; //variable changed
+		file_location_of_vehicle_global_plan = msg -> data.c_str(); //variable changed used in lane switch function
+	}
+}
+void WaypointsPathPlanner::is_local_goal_reached_callback(std_msgs::Bool msg) {
+	is_local_goal_reached_.data = msg.data;
+	is_goal_reached_ = msg.data;
+}
+void WaypointsPathPlanner::pause_set_callback(std_msgs::Bool msg) {
+	pause_set_.data = msg.data;
+}
+#ifdef VEH_TYPE_POD
+void WaypointsPathPlanner::pause_release_from_controller_callback(VehicleAVToADSControllerMsg msg)
+{
+	xbox_buttons_ = msg.XboxButtons;
+	// pod_state_ = msg.AvState; // SPB pod_state is not available here as it is in av_to_ads_core msg
+	if ((old_button_state_ != xbox_buttons_) && (pod_state_msg_ == 11)) //if((old_button_state_==0)&&(xbox_buttons_==16384) && (pod_state_==11))
+	{
+		std_msgs::Int32 destination;
+
+		if (xbox_buttons_ == 16384) {
+			destination.data = 1;
+		} else {
+			destination.data = 0;
+		}
+		pause_release_publisher_.publish(destination);
+		debug_message_edit_ -> clear();
+		debug_message_edit_ -> setText("Pause Released");
+	} else {
+		// do nothing
+	}
+	old_button_state_ = xbox_buttons_;
+}
+#endif
+void WaypointsPathPlanner::plot_no_go_zone_callback(const geometry_msgs::PointStamped & msg) {
+
+	if (is_rviz_locked_unlocked_.data == false) {
+		bool ok;
+		double radius_of_Circle = QInputDialog::getDouble(this, tr("Enter Radius "), tr("Radius"), 0.0, 0, 10, 2, & ok);
+		QMessageBox::StandardButton direction_flag;
+		direction_flag = QMessageBox::question(this, "NGZ direction", "ADT stops if obstacle is moving in direction", QMessageBox::No | QMessageBox::Yes | QMessageBox::Ignore);
+		int ngz_version;
+		if (ok && radius_of_Circle != 0) {
+			radius_of_the_no_go_zone_ = radius_of_Circle;
+			visualization_msgs::InteractiveMarker no_go_zone_marker;
+			no_go_zone_marker.pose.position.x = msg.point.x;
+			no_go_zone_marker.pose.position.y = msg.point.y;
+			no_go_zone_marker.pose.position.z = msg.point.z;
+			no_go_zone_marker.pose.orientation.x = 0;
+			no_go_zone_marker.pose.orientation.y = 0;
+			no_go_zone_marker.pose.orientation.z = 0;
+			no_go_zone_marker.pose.orientation.w = 1;
+			if (direction_flag == QMessageBox::Yes) //slows down if obstacle moves in direction
+			{
+				ngz_version = 1;
+			}
+			else if (direction_flag == QMessageBox::No) //slows down if obstacle moves in any other direction
+			{
+				ngz_version = 2;
+			}
+			else //slows down if obstacle is within ngz
+			{
+				ngz_version = 0;
+			}
+			wppngzm.create_no_go_zone_markers(no_go_zone_marker,radius_of_the_no_go_zone_,ngz_version);
+			wppngzm.save_waypoints_and_nogozones();
+			wppngzm.clear_no_go_zone_objects_before_loading_file();
+			wppngzm.clear_waypoints_descriptors_arrays();
+			wppngzm.load_waypoints_and_nogozones(filename_,left_lane_filename_,right_lane_filename_);
+		} else {
+			QMessageBox::information(this, "INFORMATION", "Enter a radius greater than zero", QMessageBox::Ok);
+		}
+	} else {
+		QMessageBox::information(this, "INFORMATION", "UNLOCK RVIZ USING THE LOCK/UNLOCK BUTTON TO PLOT NEW NO GO ZONES", QMessageBox::Ok);
+	}
+	no_go_zone_position_++;
+}
+void WaypointsPathPlanner::plot_waypoints_2d_nav_goal(geometry_msgs::PoseStamped msg) {
+	if (is_rviz_locked_unlocked_.data) {
+		QMessageBox::information(this, "INFORMATION", "UNLOCK RVIZ USING THE LOCK/UNLOCK BUTTON TO PLOT NEW WAYPOINTS", QMessageBox::Ok);
+		return;
+	}
+
+	if (is_av_navigating_msg_.data) {
+		QMessageBox::information(this, "CAUTION", "POD NAVIGATING!!! WAIT FOR THE ROUTE TO COMPLETE. CANNOT CLEAR WAYPOINTS WHILE POD IS NAVIGATING!", QMessageBox::Ok);
+		return;
+	}
+
+	if (counter_for_2d_nav_goal_ == 0) {
+		QMessageBox::information(this, "CAUTION",
+			"OVERRIDING 2D NAV GOAL FOR WAYPOINT PLOTTING CAUSES MOVEBASE TO CRASH.\n"
+			"CLOSE RVIZ AFTER ALL WAYPOINTS ARE PLOTTED AND THEN START NAVIGATION IN RVIZ AGAIN!",
+			QMessageBox::Ok);
+	}
+
+	counter_for_2d_nav_goal_++;
+	position_ = 0;
+
+	visualization_msgs::InteractiveMarker waypoint_marker;
+	waypoint_marker.pose.position = msg.pose.position;
+	waypoint_marker.pose.orientation = msg.pose.orientation;
+
+	if (wppngzm.waypoint_manipulation_panel_ != nullptr) {
+		wppngzm.save_button_->click();
+	}
+
+	// Create markers for all lanes
+	wppngzm.create_waypoint_markers(waypoint_marker, "main_lane", "main_lane_waypoint", -1, position_, 0);
+	wppngzm.create_waypoint_markers(waypoint_marker, "left_lane", "left_lane_waypoint", -1, position_, 0);
+	wppngzm.create_waypoint_markers(waypoint_marker, "right_lane", "right_lane_waypoint", -1, position_, 0);
+
+	// Save and reload updated waypoints
+	wppngzm.save_waypoints_and_nogozones();
+	wppngzm.clear_no_go_zone_objects_before_loading_file();
+	wppngzm.clear_waypoints_descriptors_arrays();
+	wppngzm.load_waypoints_and_nogozones(filename_, left_lane_filename_, right_lane_filename_);
+
+	position_++;
+
+	// GUI feedback
+	debug_message_edit_->clear();
+	debug_message_edit_->setText("The waypoint is successfully placed in RVIZ and saved in the segment file");
+
+	// Update panel spinbox ranges if available
+	if (wppngzm.waypoint_manipulation_panel_ != nullptr) {
+		int marker_count = static_cast<int>(wppngzm.main_lane_marker_names.size());
+
+		if (marker_count > 0) {
+			wppngzm.index_spinbox_->setRange(0, marker_count - 1);
+			wppngzm.from_waypoint_spinbox_->setRange(0, marker_count - 1);
+			wppngzm.to_waypoint_spinbox_->setRange(0, marker_count - 1);
+		} else {
+			// Auto-close the panel if nothing remains
+			wppngzm.waypoint_manipulation_panel_->close();
+			wppngzm.waypoint_manipulation_panel_ = nullptr;
+		}
+	}
+}
+
+
+/*Subscriber's with Timer Callback Definition*/
+
+void WaypointsPathPlanner::vehicle_position_error_callback(std_msgs::Float32 msg) {
+	timer_for_vehicle_position_error_status_.start();
+	time_from_vehicle_position_error_status_ = ros::Time::now();
+	if (msg.data <= 1.0) {
+		covariance_image_label_ -> setPixmap(covariance_good_);
+	} else if (msg.data >= 3.0) {
+		covariance_image_label_ -> setPixmap(covariance_error_);
+	} else if ((msg.data > 1.0) && (msg.data < 3)) {
+		covariance_image_label_ -> setPixmap(covariance_poor_);
+	}
+}
+void WaypointsPathPlanner::current_waypoint_index_callback(std_msgs::Int32 msg)
+{
+	current_waypoint_index_ = msg.data;
+	if (current_waypoint_index_ > 0 && current_waypoint_index_ < 100) //index changes to 0 while in temp lane
+	{
+		ROS_INFO("LANE SWITCH RESETS");
+		set_button_state(left_lane_switch_,true);
+		set_button_state(right_lane_switch_,true);
+		is_clicked = false;
+	}
+
+}
+void WaypointsPathPlanner::global_map_path_callback(std_msgs::String msg)
+{
+	map_file_path_msg = msg;
+}
+void WaypointsPathPlanner::end_of_route_subscriber_callback(std_msgs::Bool msg)
+{
+	std::cout<<"End of route acheived"<<std::endl;
+	if(command_based_filenames_to_load.size()!=0)
+	{
+		command_based_filenames_to_load.pop();
+		end_of_route_=msg.data;
+		//cancel_navigation_->click();
+
+		if((!command_based_filenames_to_load.empty()) && end_of_route_==true )
+		{
+			//cancel_navigation_->click();
+			command_load_segments(command_based_filenames_to_load);
+			//start_navigation_->click();
+		}
+	}
+}
+void WaypointsPathPlanner::local_goal_reached_subscriber_callback(std_msgs::Bool msg)
+{
+	local_goal_reached_=msg.data;
+}
+
+void WaypointsPathPlanner::ipe_to_ads_callback(std_msgs::String msg)
+{
+	try
+        {
+            ROS_INFO("Received command: %s", msg.data.c_str());
+            std::string received_message = msg.data;
+            std::string first_two = received_message.substr(0, 2);
+            std::string second_two = received_message.substr(2, 2);
+            std::string first_four = received_message.substr(0, 4);
+            std_msgs::String response_msg;
+            std::string response;
+ 
+            if (received_message.length() < 9)
+            {
+                switch (first_two[0])
+                {
+                case 'B':
+                    switch (first_two[1])
+                    {
+                    case 'C':
+                        cancel_navigation_qslot();
+                        response = "bc--";
+                        break;
+                    case 'S':
+                        start_av_navigation_qslot();
+                        response = "bs--";
+                        break;
+                    default:
+                        response = "nil_";
+                        break;
+                    }
+                    break;
+                case 'D':
+                    if (first_two == "DR")
+                    {
+                        if (second_two == "00")
+                        {
+                            response = "dr00";
+                        }
+                        else if (second_two == "01")
+                        {
+                            set_button_state(run_route_1_file_, false);
+                            response = "dr01";
+                        }
+                        else if (second_two == "02")
+                        {
+                            set_button_state(run_route_2_file_, false);
+                            response = "dr02";
+                        }
+                        else if (second_two == "03")
+                        {
+                            set_button_state(run_route_3_file_, false);
+                            response = "dr03";
+                        }
+                        else if (second_two == "04")
+                        {
+                            set_button_state(run_route_4_file_, false);
+                            response = "dr04";
+                        }
+                        else
+                        {
+                            response = "nil_";
+                        }
+                    }
+                    break;
+                case 'E':
+                    switch (first_two[1])
+                    {
+                    case 'R':
+                        if (second_two == "00")
+                        {
+                            response = "er00";
+                        }
+                        else if (second_two == "01")
+                        {
+                            set_button_state(run_route_1_file_, true);
+                            response = "er01";
+                        }
+                        else if (second_two == "02")
+                        {
+                            set_button_state(run_route_2_file_, true);
+                            response = "er02";
+                        }
+                        else if (second_two == "03")
+                        {
+                            set_button_state(run_route_3_file_, true);
+                            response = "er03";
+                        }
+                        else if (second_two == "04")
+                        {
+                            set_button_state(run_route_4_file_, true);
+                            response = "er04";
+                        }
+                        else
+                        {
+                            response = "nil_";
+                        }
+                        break;
+                    case 'V':
+                        if (second_two == "PR" ||
+                            second_two == "NO")
+                        {
+                            response = "ack_";
+                        }
+                        else
+                        {
+                            response = "nil_";
+                        }
+                        break;
+                    default:
+                        response = "nil_";
+                        break;
+                    }
+                    break;
+
+                case 'L':
+                    switch (first_two[1])
+                    {
+                    case 'R':
+                        response = "nil_";
+                        break;
+                    case 'S':
+                    	cancel_navigation_qslot();
+                        if (second_two == "00")
+                        {
+                            response = "ls00";
+                        }
+                        else if (second_two == "01")
+                        {
+                            run_route_1_file_->click();
+                            response = "ls01";
+                        }
+                        else if (second_two == "02")
+                        {
+                            run_route_2_file_->click();
+                            response = "ls02";
+                        }
+                        else if (second_two == "03")
+                        {
+                            run_route_3_file_->click();
+                            response = "ls03";
+                        }
+                        else if (second_two == "04")
+                        {
+                            run_route_4_file_->click();
+                            response = "ls04";
+                        }
+                        else
+                        {
+                            response = "nil_";
+                        }
+                        break;
+                    default:
+                        response = "nil_";
+                        break;
+                    }
+                    break;
+
+                case 'R':
+                    switch (first_two[1])
+                    {
+                    case 'E':
+                        response = "ack";
+                        break;
+                    case 'M':
+                        response = "rm--";
+                        break;
+                    case 'N':
+                        response = is_av_navigating_msg_.data ? "rn1-" : "rn0-";
+                        break;
+                    case 'O':
+                        response = "ack";
+                        break;
+                    case 'R':
+                        response = "rr--";
+                        break;
+                    case 'S':
+                        response = "rs--";
+                        break;
+                    case 'T':
+                        response = "rt--";
+                        break;
+                    case 'W':
+                    {
+                        float x_diff = adt_x - end_point_.position.x;
+                        float y_diff = adt_y - end_point_.position.y;
+                        float total_diff = sqrt(x_diff * x_diff + y_diff * y_diff);
+                        try
+                        {
+                            if (total_diff <= 1.7)
+                            {
+                                response = "rw@@";
+                            }
+                            else
+                            {
+                                response = "rw" + int_to_hexstring(current_waypoint_index_);
+                            }
+                        }
+                        catch (const std::exception &e)
+                        {
+                            response = "rw!!";
+                        }
+                        break;
+                    }
+
+                    default:
+                        response = "nil_";
+                        break;
+                    }
+                    break;
+
+                case 'Z':
+                    response = "ack_";
+                    break;
+                default:
+                    response = "nil_";
+                    break;
+                }
+            }
+            else
+            {
+                response = "nil_";
+            }
+ 
+            response_msg.data = response;
+
+            if(response=="nil_")
+            {
+                response_msg.data = last_minder_state_;
+            } else {
+                response_msg.data = response;
+            }
+            ads_to_ipe_publisher_.publish(response_msg);
+        }
+
+        catch (...)
+        {
+            ROS_INFO("done");
+        }	
+}
+
+void WaypointsPathPlanner::lane_switch_callback(std_msgs::Bool msg)
+{
+	bool go_right_=msg.data;
+	if(!is_clicked)
+	{
+		if(go_right_)
+		{
+			ROS_INFO("GONNA CLICK RIGHT");
+			right_lane_switch_ -> click();
+			ROS_INFO("RIGHT CLICKED");
+		}
+		else
+		{
+			left_lane_switch_ -> click();
+			ROS_INFO("LEFT CLICKED");
+		}
+		is_clicked = true;
+		ROS_INFO("SET TO TRUE");
+	}
+
+}
+
+void WaypointsPathPlanner::minder_state_callback(std_msgs::String msg)
+{
+	last_minder_state_ = msg.data;  // Store latest received state
+}
+
+void WaypointsPathPlanner::waypoint_info_callback(waypoints_path_planner::waypointinfoarray msg)
+{
+	for (int i = 0; i < msg.waypointinfodata.size(); i++)
+	{
+		end_point_ = msg.waypointinfodata.at(msg.waypointinfodata.size() - 1).waypointpose;
+	}
+}
+
+void WaypointsPathPlanner::command_load_segments(std::queue<std::string> command_based_filenames_to_load)
+{
+	if(!command_based_filenames_to_load.empty())
+	{
+		filename_=command_based_filenames_to_load.front();
+		std::cout<<"File name in command_load_segments"<<filename_<<command_based_filenames_to_load.front()<<std::endl;
+		boost::filesystem::path filename_path(command_based_filenames_to_load.front());
+		left_lane_filename_ = filename_path.parent_path().string() + "/LeftLane" + "/leftlane.yaml";
+		right_lane_filename_ = filename_path.parent_path().string() + "/RightLane" + "/rightlane.yaml";
+		publish_waypoint_paths();
+		wppngzm.clear_waypoints_descriptors_arrays();
+		wppngzm.clear_no_go_zone_objects_before_loading_file();
+		wppngzm.load_waypoints_and_nogozones(filename_, left_lane_filename_, right_lane_filename_);
+		wppngzm.load_route_process(filename_, left_lane_filename_, right_lane_filename_);
+		//if(is_av_navigating_msg_.data==false)
+		{
+			start_navigation_->click();
+		}
+		//command_based_filenames_to_load.pop();
+	}
+
+}
+
+std::vector<std::string> WaypointsPathPlanner::segment_path_string(const std::string& input) {
+	std::vector<std::string> segments;
+	for (size_t i = 0; i < input.size() - 1; ++i) {
+		segments.push_back(input.substr(i, 2)); // Extract 2-character substring
+	}
+	return segments;
+}
+
+/*Timer's Callback Definitions*/
+void WaypointsPathPlanner::timer_for_vehicle_position_error() {
+	last_time_in_timer_vehicle_position_error_status_ = time_from_vehicle_position_error_status_;
+	duration_between_last_time_and_time_from_vehicle_position_error_status_ = ros::Time::now();
+	ros::Duration final_time_for_vehicle_position_error_status = duration_between_last_time_and_time_from_vehicle_position_error_status_ - last_time_in_timer_vehicle_position_error_status_;
+	if (final_time_for_vehicle_position_error_status.sec > 1) {
+		//covariance_image_label_ -> setPixmap(covariance_unknown_);
+		//covariance_image_label_ -> show();
+		timer_for_vehicle_position_error_status_.stop();
+	}
+}
+void WaypointsPathPlanner::timer_for_navigation_callback() {
+	last_time_in_timer_navigation_status_ = time_from_navigation_status_;
+	duration_between_last_time_and_time_from_navigation_status_ = ros::Time::now();
+	ros::Duration final_time_for_navigation_status = duration_between_last_time_and_time_from_navigation_status_ - last_time_in_timer_navigation_status_;
+	if (final_time_for_navigation_status.sec > 1) {
+		navigation_image_label_ -> setPixmap(navigation_unknown_);
+		navigation_image_label_ -> show();
+		timer_for_navigation_status_.stop();
+	}
+	std_msgs::Int32 destination;
+	destination.data = 0;
+	pause_release_publisher_.publish(destination);
+}
+void WaypointsPathPlanner::timer_for_time_machine_callback() {
+	last_time_in_timer_time_machine_status_ = time_from_time_machine_status_;
+	duration_between_last_time_and_time_from_time_machine_status_ = ros::Time::now();
+	ros::Duration final_time_for_time_machine_status = duration_between_last_time_and_time_from_time_machine_status_ - last_time_in_timer_time_machine_status_;
+	if (final_time_for_time_machine_status.sec > 1) {
+		label_time_machine_ -> setPixmap(time_machine_error_);
+		label_time_machine_ -> show();
+		timer_for_time_machine_status_.stop();
+	}
+}
+void WaypointsPathPlanner::timer_for_system_monitor_callback() {
+	last_time_in_timer_system_monitor_status_ = time_from_system_monitor_status_;
+	duration_between_last_time_and_time_from_system_monitor_status_ = ros::Time::now();
+	ros::Duration final_time_for_system_monitor_status = duration_between_last_time_and_time_from_system_monitor_status_ - last_time_in_timer_system_monitor_status_;
+	if (final_time_for_system_monitor_status.sec > 1) {
+		label_system_monitor_ -> setPixmap(ads_temp_unknown_);
+		label_system_monitor_ -> show();
+		timer_for_system_monitor_status_.stop();
+	}
+}
+void WaypointsPathPlanner::timer_for_loading_arms_callback() {
+	last_time_in_timer_loading_arms_status_ = time_from_loading_arms_status_;
+	duration_between_last_time_and_time_from_loading_arms_status_ = ros::Time::now();
+	ros::Duration final_time_for_loading_arms_status = duration_between_last_time_and_time_from_loading_arms_status_ - last_time_in_timer_loading_arms_status_;
+	if (final_time_for_loading_arms_status.sec > 1) {
+		label_loading_arms_ -> setPixmap(loading_arms_unknown_);
+		label_loading_arms_ -> show();
+		timer_for_loading_arms_status_.stop();
+	}
+}
+// timer for gps_status
+/*void InteractiveWaypoints::timerforGPSfixCallback()
+  {
+  	last_time_in_timer_gps_status_=time_from_gps_status_;
+  	duration_between_last_time_and_time_from_gps_status_=ros::Time::now();
+  	ros::Duration final_time_for_gps_status=duration_between_last_time_and_time_from_gps_status_-last_time_in_timer_gps_status_;
+  	if(final_time_for_gps_status.sec>1)
+  	{
+  		label_gps_fix_on_off_->setPixmap(pic_gps_fix_off_);
+  		label_gps_fix_on_off_->show();
+  	}
+  	else
+  	{
+  		label_gps_fix_on_off_->setPixmap(pic_gps_fix_on_);
+  		label_gps_fix_on_off_->show();
+  	}
+  }*/
+void WaypointsPathPlanner::timer_for_imu_callback() {
+	last_time_in_timer_imu_status_ = time_from_imu_status_;
+	duration_between_last_time_and_time_from_imu_status_ = ros::Time::now();
+	ros::Duration final_time_for_imu_status = duration_between_last_time_and_time_from_imu_status_ - last_time_in_timer_imu_status_;
+	if (final_time_for_imu_status.sec > 1) {
+		label_imu_fix_on_off_ -> setMovie(movie_imu_fix_off_);
+		movie_imu_fix_off_ -> start();
+	} else {
+		label_imu_fix_on_off_ -> setMovie(movie_imu_fix_on_);
+		movie_imu_fix_on_ -> start();
+	}
+}
+void WaypointsPathPlanner::timer_for_lidar_status_callback() {
+	last_time_in_timer_lidar_status_ = time_from_lidar_status_;
+	duration_between_last_time_and_time_from_lidar_status_ = ros::Time::now();
+	ros::Duration final_time_for_lidar_status = duration_between_last_time_and_time_from_lidar_status_ - last_time_in_timer_lidar_status_;
+	if (final_time_for_lidar_status.sec > 1) {
+		label_lidar_status_ -> setPixmap(lidar_status_off_);
+		label_lidar_status_ -> show();
+	} else {
+		label_lidar_status_ -> setPixmap(lidar_status_on_);
+		label_lidar_status_ -> show();
+	}
+}
+void WaypointsPathPlanner::timer_for_dms_handle_callback() {
+	last_time_in_timer_dms_status_ = time_from_dms_status_;
+	duration_between_last_time_and_time_from_dms_status_ = ros::Time::now();
+	ros::Duration final_time_for_dms_status_ = duration_between_last_time_and_time_from_dms_status_ - last_time_in_timer_dms_status_;
+	if (final_time_for_dms_status_.sec > 1) {
+		label_dms_on_off_ -> setMovie(movie_dms_on_off_unknown_);
+		movie_dms_on_off_unknown_ -> start();
+		timer_for_dms_handle_status_.stop();
+	}
+}
+void WaypointsPathPlanner::timer_for_pod_to_acs_core_callback() {
+	last_time_in_timer_pod_to_acs_core_ = time_from_the_pod_to_acs_core_;
+	duration_between_last_time_and_time_from_the_pod_to_acs_core_ = ros::Time::now();
+	ros::Duration final_time_for_pod_to_acs_core_ = duration_between_last_time_and_time_from_the_pod_to_acs_core_ - last_time_in_timer_pod_to_acs_core_;
+	last_time_in_timer_pod_to_acs_aux_ = time_from_the_pod_to_acs_aux_;
+	duration_between_last_time_and_time_from_the_pod_to_acs_aux_ = ros::Time::now();
+	ros::Duration final_time_for_pod_to_acs_aux_ = duration_between_last_time_and_time_from_the_pod_to_acs_aux_ - last_time_in_timer_pod_to_acs_aux_;
+	if ((final_time_for_pod_to_acs_core_.sec > 2) || (final_time_for_pod_to_acs_aux_.sec > 2)) {
+		label_battery_default_ -> setMovie(movie_battery_unknown_);
+		movie_battery_unknown_ -> start();
+		label_autonomy_enable_disable_ -> setMovie(movie_autonomy_enable_on_off_unknown_);
+		movie_autonomy_enable_on_off_unknown_ -> start();
+		timer_for_battery_status_.stop();
+	}
+}
+void WaypointsPathPlanner::timer_for_bbr_callback() {
+	last_time_in_timer_bbr_status_ = time_from_bbr_status_;
+	duration_between_last_time_and_time_from_bbr_status_ = ros::Time::now();
+	ros::Duration final_time_for_bbr_status = duration_between_last_time_and_time_from_bbr_status_ - last_time_in_timer_bbr_status_;
+	if (final_time_for_bbr_status.sec > 1) {
+		label_bbr_status_ -> setPixmap(bbr_unknown_);
+		label_bbr_status_ -> show();
+		timer_for_bbr_status_.stop();
+	}
+}
+}
+#include <pluginlib/class_list_macros.h>
+PLUGINLIB_EXPORT_CLASS(waypoints_path_planner::WaypointsPathPlanner,rviz::Panel)
