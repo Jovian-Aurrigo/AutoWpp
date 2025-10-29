@@ -49,7 +49,43 @@ status_panel_ = new StatusMonitoringPanel(nh_, gridLayout);
 status_panel_->initialize();
 ```
 
-#### 2. **WaypointsPathPlanner** (REFACTORED)
+#### 2. **VisualizationManager** (NEW)
+**Location:** `include/waypoints_path_planner/visualization_manager.h` and `src/visualization_manager.cpp`
+
+**Purpose:** Handles all interactive marker visualization and RViz display.
+
+**Responsibilities:**
+- Interactive waypoint markers (main, left, right lanes)
+- No-go zone markers (with different versions/behaviors)
+- Trajectory visualization
+- Vehicle pose display
+- Marker creation, update, and deletion
+- Color-coded visualization by lane type
+
+**Key Features:**
+- Interactive marker server management
+- Marker lifecycle management (create, update, remove)
+- Trajectory path visualization
+- Helper functions for common marker types (sphere, cylinder, arrow)
+- Lane-based color coding
+
+**Usage:**
+```cpp
+// In WaypointsPathPlanner constructor
+viz_manager_ = new VisualizationManager(nh_);
+viz_manager_->initialize();
+
+// Create a waypoint
+viz_manager_->createWaypointMarker(pose, "waypoint_0", 0, "main");
+
+// Create a no-go zone
+viz_manager_->createNoGoZoneMarker(pose, 2.5, "nogz_0", 0);
+
+// Update trajectory
+viz_manager_->publishTrajectory(trajectory_poses);
+```
+
+#### 3. **WaypointsPathPlanner** (REFACTORED)
 **Location:** `include/waypoints_path_planner/waypoints_path_planner.h` and `src/waypoints_path_planner.cpp`
 
 **Purpose:** Core waypoint planning and route management with GUI control panel.
@@ -61,9 +97,10 @@ status_panel_->initialize();
 - RViz panel integration
 - Navigation control buttons and dialogs
 - Lane switching
-- Interactive marker callbacks (delegated to visualization tools)
+- Route possibility matrix management
+- Integration with StatusMonitoringPanel and VisualizationManager
 
-#### 3. **navigator_interactive_waypoint** (UNCHANGED)
+#### 4. **navigator_interactive_waypoint** (UNCHANGED)
 **Location:** `include/waypoints_path_planner/navigator_interactive_waypoint.h` and `src/navigator_interactive_waypoint.cpp`
 
 **Purpose:** Navigation execution node (already separate).
@@ -79,28 +116,39 @@ status_panel_->initialize();
 
 ### 1. **Separation of Concerns**
 - Status monitoring logic is isolated from core planning logic
+- Visualization/markers isolated from planning and status display
+- Each component has a single, well-defined responsibility
 - Easier to understand and maintain each component
 - Clearer code organization
 
 ### 2. **Improved Testability**
 - Status panel can be tested independently
+- Visualization manager can be tested without GUI dependencies
 - Core planning logic is less cluttered
 - Easier to mock components for unit testing
 
 ### 3. **Modularity**
 - Status panel can be reused in other RViz panels
-- Easier to add new status indicators
+- Visualization manager provides clean API for marker management
+- Easier to add new status indicators or visualization types
 - Components can evolve independently
 
 ### 4. **Maintainability**
-- Smaller, focused files are easier to understand
-- Changes to status display don't affect planning logic
+- Smaller, focused files are easier to understand (~300-500 lines vs 2900+ lines)
+- Changes to status display don't affect planning or visualization logic
+- Changes to visualization don't affect status or planning logic
 - Reduced risk of unintended side effects
 
 ### 5. **Future Extensibility**
 - Can easily be evolved into separate ROS nodes if needed
 - Foundation for further modularization
 - Clearer API boundaries
+- Easier integration with other systems
+
+### 6. **Reusability**
+- VisualizationManager can be used by other planning/navigation tools
+- StatusMonitoringPanel can monitor any autonomous vehicle system
+- Common marker creation utilities available for reuse
 
 ## Migration Notes
 
@@ -112,15 +160,26 @@ status_panel_->initialize();
 label_battery_ = new QLabel;
 vehicle_position_error_sub_ = nh_.subscribe("/vehicle_position_error", ...);
 timer_for_battery_status_ = nh_.createTimer(...);
-// ... hundreds of lines of status code ...
+
+// Visualization code mixed with planning logic
+marker_server_ = new InteractiveMarkerServer(...);
+createWaypointMarker(...);
+updateMarkerPose(...);
+
+// ... thousands of lines of mixed code ...
 ```
 
 **After:**
 ```cpp
-// Clean separation
+// Clean separation - status monitoring
 status_panel_ = new StatusMonitoringPanel(nh_, gridLayout);
 status_panel_->initialize();
-// Status monitoring is now completely handled by StatusMonitoringPanel
+
+// Clean separation - visualization
+viz_manager_ = new VisualizationManager(nh_);
+viz_manager_->initialize();
+
+// Core planning logic remains focused on waypoint planning
 ```
 
 ### API Changes
@@ -135,23 +194,21 @@ status_panel_->initialize();
 
 ### Potential Further Refactoring
 
-1. **VisualizationManager** - Extract interactive marker management
-   - Waypoint markers
-   - No-go zone markers
-   - Vehicle pose visualization
-   - Route visualization
-
-2. **RouteManager** - Extract route planning and file management
+1. **RouteManager** - Extract route planning and file management
    - Route file I/O
    - Route computation
    - Route possibility matrix
    - Segment management
 
-3. **Separate ROS Nodes** - Evolution path to fully independent nodes
+2. **Separate ROS Nodes** - Evolution path to fully independent nodes
    - `status_monitor_node` - System status monitoring
    - `waypoint_visualizer_node` - Interactive markers and visualization
    - `waypoint_planner_node` - Core planning logic
    - `navigator_node` - Navigation execution (already separate)
+
+3. **Integration with waypoints_path_planning_tool**
+   - Evaluate integration opportunities with existing external library
+   - Potential consolidation of waypoint management functionality
 
 ### Benefits of Further Separation
 
