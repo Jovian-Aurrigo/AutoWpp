@@ -87,7 +87,9 @@ find_package(Ceres REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 set(HEADER_FILES include/waypoints_path_planner/waypoints_path_planner.h
-include/waypoints_path_planner/waypoints_path_planner_panel_management.h)
+include/waypoints_path_planner/waypoints_path_planner_panel_management.h
+include/waypoints_path_planner/status_monitoring_panel.h
+include/waypoints_path_planner/visualization_manager.h)
 
 set(EXTERNAL_INCLUDE_DIRS 
 		${Eigen_INCLUDE_DIRS} 
@@ -270,7 +272,7 @@ endif()
 
 ## Declare a C++ library
  add_library(${PROJECT_NAME}
-   src/waypoints_path_planner.cpp src/main.cpp ${MOC_FILES}
+   src/waypoints_path_planner.cpp src/main.cpp src/status_monitoring_panel.cpp src/visualization_manager.cpp ${MOC_FILES}
  )
 
 ## Add cmake target dependencies of the library
