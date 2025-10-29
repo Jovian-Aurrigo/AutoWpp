@@ -566,10 +566,11 @@ WaypointsPathPlanner::WaypointsPathPlanner (QWidget * parent): rviz::Panel(paren
 	set_button_state(run_route_4_file_,true);
 	set_button_state(delete_no_go_zone_markers_in_file_and_rviz_,false);
 		}
-/*WaypointsPathPlanner::~WaypointsPathPlanner()
+WaypointsPathPlanner::~WaypointsPathPlanner()
 {
-
-}*/
+	// Clean up dynamically allocated status panel
+	delete status_panel_;
+}
 
 void WaypointsPathPlanner::publish_waypoint_paths()
 {

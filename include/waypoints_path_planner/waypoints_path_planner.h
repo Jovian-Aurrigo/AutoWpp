@@ -257,7 +257,7 @@ class WaypointsPathPlanner: public rviz::Panel
 
 public:
 	WaypointsPathPlanner(QWidget * parent = 0);
-	//	~WaypointsPathPlanner();
+	~WaypointsPathPlanner();
 
 	struct getlistofwaypoints
 	{
