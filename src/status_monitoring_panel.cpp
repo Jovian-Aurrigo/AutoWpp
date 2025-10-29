@@ -17,13 +17,26 @@ namespace waypoints_path_planner
 
 StatusMonitoringPanel::StatusMonitoringPanel(ros::NodeHandle& nh, QGridLayout* layout)
     : nh_(nh), grid_layout_(layout), pod_state_(0), boot_safe_(false),
-      last_imu_state_on_(false), last_lidar_state_on_(false)
+      last_imu_state_on_(false), last_lidar_state_on_(false),
+      // Initialize all QMovie pointers to nullptr
+      movie_battery_charging_(nullptr), movie_battery_full_(nullptr),
+      movie_battery_half_(nullptr), movie_battery_quarter_(nullptr),
+      movie_battery_three_quarter_(nullptr), movie_battery_depleted_(nullptr),
+      movie_battery_unknown_(nullptr), movie_battery_full_plugged_in_(nullptr),
+      movie_autonomy_on_(nullptr), movie_autonomy_off_(nullptr),
+      movie_autonomy_unknown_(nullptr), movie_dms_on_(nullptr),
+      movie_dms_off_(nullptr), movie_dms_unknown_(nullptr),
+      movie_dms_uninitialised_(nullptr), movie_dtp_on_(nullptr),
+      movie_dtp_off_(nullptr), movie_dtp_unknown_(nullptr),
+      movie_imu_on_(nullptr), movie_imu_off_(nullptr),
+      movie_bbr_full_(nullptr), movie_bbr_no_drive_in_bay_(nullptr),
+      movie_time_machine_ready_(nullptr), movie_time_machine_writing_(nullptr)
 {
 }
 
 StatusMonitoringPanel::~StatusMonitoringPanel()
 {
-    // Cleanup Qt objects
+    // Cleanup Qt objects - delete is safe for nullptr in C++
     delete movie_battery_charging_;
     delete movie_battery_full_;
     delete movie_battery_half_;
@@ -48,6 +61,23 @@ StatusMonitoringPanel::~StatusMonitoringPanel()
     delete movie_bbr_no_drive_in_bay_;
     delete movie_time_machine_ready_;
     delete movie_time_machine_writing_;
+}
+
+QMovie* StatusMonitoringPanel::createValidatedMovie(const std::string& param_name)
+{
+    std::string file_path;
+    if (nh_.getParam(param_name, file_path)) {
+        QMovie* movie = new QMovie(QString::fromStdString(file_path));
+        if (movie && movie->isValid()) {
+            return movie;
+        } else {
+            ROS_WARN("Failed to load or invalid movie file for parameter '%s': %s", 
+                     param_name.c_str(), file_path.c_str());
+            delete movie;
+            return nullptr;
+        }
+    }
+    return nullptr;
 }
 
 void StatusMonitoringPanel::initialize()
@@ -161,34 +191,17 @@ void StatusMonitoringPanel::initializeLabels()
 
 void StatusMonitoringPanel::initializeMovies()
 {
-    // Load movie files from parameters
-    std::string file_path;
+    // Load and validate movie files from parameters
     
     // Battery movies
-    if (nh_.getParam("/battery_unknown_file", file_path)) {
-        movie_battery_unknown_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/battery_charging_file", file_path)) {
-        movie_battery_charging_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/battery_depleted_file", file_path)) {
-        movie_battery_depleted_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/battery_full_file", file_path)) {
-        movie_battery_full_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/battery_half_file", file_path)) {
-        movie_battery_half_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/battery_quarter_file", file_path)) {
-        movie_battery_quarter_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/battery_three_quarter_file", file_path)) {
-        movie_battery_three_quarter_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/battery_charger_plugged_in_file", file_path)) {
-        movie_battery_full_plugged_in_ = new QMovie(QString::fromStdString(file_path));
-    }
+    movie_battery_unknown_ = createValidatedMovie("/battery_unknown_file");
+    movie_battery_charging_ = createValidatedMovie("/battery_charging_file");
+    movie_battery_depleted_ = createValidatedMovie("/battery_depleted_file");
+    movie_battery_full_ = createValidatedMovie("/battery_full_file");
+    movie_battery_half_ = createValidatedMovie("/battery_half_file");
+    movie_battery_quarter_ = createValidatedMovie("/battery_quarter_file");
+    movie_battery_three_quarter_ = createValidatedMovie("/battery_three_quarter_file");
+    movie_battery_full_plugged_in_ = createValidatedMovie("/battery_charger_plugged_in_file");
     
     // Set default movie for battery
     if (movie_battery_unknown_) {
@@ -197,15 +210,9 @@ void StatusMonitoringPanel::initializeMovies()
     }
     
     // Autonomy movies
-    if (nh_.getParam("/autonomy_switch_unknown_file", file_path)) {
-        movie_autonomy_unknown_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/autonomy_switch_on_file", file_path)) {
-        movie_autonomy_on_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/autonomy_switch_off_file", file_path)) {
-        movie_autonomy_off_ = new QMovie(QString::fromStdString(file_path));
-    }
+    movie_autonomy_unknown_ = createValidatedMovie("/autonomy_switch_unknown_file");
+    movie_autonomy_on_ = createValidatedMovie("/autonomy_switch_on_file");
+    movie_autonomy_off_ = createValidatedMovie("/autonomy_switch_off_file");
     
     if (movie_autonomy_unknown_) {
         label_autonomy_->setMovie(movie_autonomy_unknown_);
@@ -213,18 +220,10 @@ void StatusMonitoringPanel::initializeMovies()
     }
     
     // DMS movies
-    if (nh_.getParam("/dms_unknown_file", file_path)) {
-        movie_dms_unknown_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/dms_not_initialised_file", file_path)) {
-        movie_dms_uninitialised_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/dms_not_armed_file", file_path)) {
-        movie_dms_off_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/dms_armed_file", file_path)) {
-        movie_dms_on_ = new QMovie(QString::fromStdString(file_path));
-    }
+    movie_dms_unknown_ = createValidatedMovie("/dms_unknown_file");
+    movie_dms_uninitialised_ = createValidatedMovie("/dms_not_initialised_file");
+    movie_dms_off_ = createValidatedMovie("/dms_not_armed_file");
+    movie_dms_on_ = createValidatedMovie("/dms_armed_file");
     
     if (movie_dms_unknown_) {
         label_dms_->setMovie(movie_dms_unknown_);
@@ -232,23 +231,13 @@ void StatusMonitoringPanel::initializeMovies()
     }
     
     // DTP movies
-    if (nh_.getParam("/dtp_unknown_file", file_path)) {
-        movie_dtp_unknown_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/dtp_on_file", file_path)) {
-        movie_dtp_on_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/dtp_off_file", file_path)) {
-        movie_dtp_off_ = new QMovie(QString::fromStdString(file_path));
-    }
+    movie_dtp_unknown_ = createValidatedMovie("/dtp_unknown_file");
+    movie_dtp_on_ = createValidatedMovie("/dtp_on_file");
+    movie_dtp_off_ = createValidatedMovie("/dtp_off_file");
     
     // IMU movies
-    if (nh_.getParam("/imu_connected_file", file_path)) {
-        movie_imu_on_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/imu_not_connected_file", file_path)) {
-        movie_imu_off_ = new QMovie(QString::fromStdString(file_path));
-    }
+    movie_imu_on_ = createValidatedMovie("/imu_connected_file");
+    movie_imu_off_ = createValidatedMovie("/imu_not_connected_file");
     
     if (movie_imu_off_) {
         label_imu_->setMovie(movie_imu_off_);
@@ -256,20 +245,13 @@ void StatusMonitoringPanel::initializeMovies()
     }
     
     // BBR movies
-    if (nh_.getParam("/bbr_full_file", file_path)) {
-        movie_bbr_full_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/bbr_no_drive_in_bay_file", file_path)) {
-        movie_bbr_no_drive_in_bay_ = new QMovie(QString::fromStdString(file_path));
-    }
+    movie_bbr_full_ = createValidatedMovie("/bbr_full_file");
+    movie_bbr_no_drive_in_bay_ = createValidatedMovie("/bbr_no_drive_in_bay_file");
     
     // Time Machine movies
-    if (nh_.getParam("/time_machine_ready_file", file_path)) {
-        movie_time_machine_ready_ = new QMovie(QString::fromStdString(file_path));
-    }
-    if (nh_.getParam("/time_machine_writing_file", file_path)) {
-        movie_time_machine_writing_ = new QMovie(QString::fromStdString(file_path));
-    }
+    movie_time_machine_ready_ = createValidatedMovie("/time_machine_ready_file");
+    movie_time_machine_writing_ = createValidatedMovie("/time_machine_writing_file");
+}
 }
 
 void StatusMonitoringPanel::initializePixmaps()

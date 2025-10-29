@@ -252,6 +252,9 @@ private:
     void initializeSubscribers();
     void initializeTimers();
     void addLabelsToLayout();
+    
+    // Utility helpers
+    QMovie* createValidatedMovie(const std::string& param_name);
 };
 
 } // namespace waypoints_path_planner
