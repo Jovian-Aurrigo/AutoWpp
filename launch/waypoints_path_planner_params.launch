@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+   <rosparam file="$(find waypoints_path_planner)/config/resources.yaml" />
+   <rosparam file="$(find waypoints_path_planner)/config/process.yaml" />
+   <rosparam file="$(find waypoints_path_planner)/config/filedialog.yaml" />
+</launch>

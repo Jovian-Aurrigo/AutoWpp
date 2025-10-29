@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<launch>
+
+
+ <arg name="waypoints_file" default="/home/craig/code/ros/Launchers/Pod/Waypoints/LIDAR/Default/default.yaml"/> 
+
+ <include file="$(find waypoints_path_planner)/launch/waypoints_path_planner_params.launch" />
+ 
+<!-- 
+ <node pkg="rviz" type="rviz" name="rviz" args="-d /home/maria-venus/AV/av-install/src/waypoints_path_planner/rviz/waypoints_path_planner.rviz" output="screen">
+
+    <param name="WorkingFolder" value="/home/maria-venus/localization_ws/src/interactive_waypoints/waypoints/"/>
+   <param name="WaypointsFilename" value="/home/maria-venus/localization_ws/src/interactive_waypoints/waypoints/Default/default.yaml"/>
+    <param name="WaypointsLeftLaneFilename" value="/home/maria-venus/localization_ws/src/interactive_waypoints/waypoints/Default/LeftLane/leftlane.yaml"/>
+    <param name="WaypointsRightLaneFilename" value="/home/maria-venus/localization_ws/src/interactive_waypoints/waypoints/Default/RightLane/rightlane.yaml"/>
+   <param name="ErrorPosDetectingInitPoint_" value="3"/>
+   <param name="RoutesFilename" value="/home/maria-venus/AV/av-install/src/waypoints_path_planner/routes/test.yaml"/> 
+   
+    
+</node> -->
+
+ 
+<node pkg="rviz" type="rviz" name="rviz_navigation" 
+    args="-d /home/aurrigo-ads/code/ros/Launchers/Pod/3D_ACS_LAUNCHERS/RVIZ/waypoints_path_planner.rviz" output="screen">
+     <rosparam file="/home/maria/code/ros/Launchers/MuleExhibitionLec/waypointsnav_carlike_local_planner_params.yaml" command="load" />
+   <param name="WorkingFolder" value="/home/maria/code/ros/Launchers/Pod/Waypoints/LIDAR/"/>
+   <param name="WaypointsFilename" value="/home/maria/code/ros/Launchers/Pod/Waypoints/LIDAR/Default/default.yaml"/>
+    <param name="WaypointsLeftLaneFilename" value="/home/maria/code/ros/Launchers/Pod/Waypoints/LIDAR/Default/LeftLane/leftlane.yaml"/>
+    <param name="WaypointsRightLaneFilename" value="/home/maria/code/ros/Launchers/Pod/Waypoints/LIDAR/Default/RightLane/rightlane.yaml"/>
+   <param name="ErrorPosDetectingInitPoint_" value="3"/>
+   <param name="RoutesFilename" value="/home/maria-venus/AV/av-install/src/waypoints_path_planner/routes/test.yaml"/> 
+       
+</node>
+
+
+</launch>

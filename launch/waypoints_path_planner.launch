@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="waypoints_file" default="/home/craig/code/ros/Launchers/Pod/Waypoints/LIDAR/Default/default.yaml"/>
+
+  <include file="$(find waypoints_path_planner)/launch/waypoints_path_planner_params.launch"/>
+
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(env HOME)/aurrigo-ws/src/waypoints_path_planner/rviz/rviz/waypoints_path_planner.rviz" output="screen">
+
+    <!-- <rosparam file="/home/maria/code/ros/Launchers/MuleExhibitionLec/waypointsnav_carlike_local_planner_params.yaml" command="load" /> -->
+    <param name="WorkingFolder" value="/home/maria-venus/localization_ws/src/interactive_waypoints/waypoints/"/>
+    <param name="WaypointsFilename" value="/home/maria-venus/localization_ws/src/interactive_waypoints/waypoints/Default/default.yaml"/>
+    <param name="WaypointsLeftLaneFilename" value="/home/maria-venus/localization_ws/src/interactive_waypoints/waypoints/Default/LeftLane/leftlane.yaml"/>
+    <param name="WaypointsRightLaneFilename" value="/home/maria-venus/localization_ws/src/interactive_waypoints/waypoints/Default/RightLane/rightlane.yaml"/>
+    <param name="ErrorPosDetectingInitPoint_" value="3"/>
+    <param name="RoutesFilename" value="/home/maria-venus/code/ros/Launchers/Pod/Routes/test_matrix_AB.yaml"/>
+  </node>
+
+</launch>

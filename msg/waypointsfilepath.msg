@@ -1,0 +1,3 @@
+string mainlanefilepath
+string leftlanefilepath
+string rightlanefilepath

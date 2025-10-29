@@ -1,0 +1,4 @@
+toggle_button_lock_file: /home/maria-venus/AV/av-install/src/waypoints_path_planner/resources/LockUnlockRviz/lock.png
+toggle_button_unlock_file: /home/maria-venus/AV/av-install/src/waypoints_path_planner/resources/LockUnlockRviz/unlock.png
+ordering_auto_file: /home/maria-venus/AV/av-install/src/waypoints_path_planner/resources/Ordering/ordering_auto.gif
+ordering_manual_file : /home/maria-venus/AV/av-install/src/waypoints_path_planner/resources/Ordering/ordering_manual.gif

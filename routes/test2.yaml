@@ -1,0 +1,5 @@
+Routes:
+   - route:
+        Route: /home/maria/catkin_ws/src/interactive_waypoints/waypoints/0_1_Start/0_1_Start.yaml
+   - route:
+        Route: /home/maria/catkin_ws/src/interactive_waypoints/waypoints/default_waypoint.yaml

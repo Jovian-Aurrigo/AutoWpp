@@ -1,0 +1,563 @@
+diff --git a/include/waypoints_path_planner/waypoints_path_planner.h b/include/waypoints_path_planner/waypoints_path_planner.h
+index 3f34090..c1d77fc 100755
+--- a/include/waypoints_path_planner/waypoints_path_planner.h
++++ b/include/waypoints_path_planner/waypoints_path_planner.h
+@@ -329,6 +329,7 @@ public:
+ 	void local_goal_reached_subscriber_callback(std_msgs::Bool msg);
+ 	void lane_switch_callback(std_msgs::Bool msg);
+ 	void waypoint_info_callback(waypoints_path_planner::waypointinfoarray msg);
++	void minder_state_callback(std_msgs::String msg);
+ 
+ 	/*Timer's Callback Declaration*/
+ 	void timer_for_vehicle_position_error();
+@@ -634,6 +635,7 @@ private:
+ 	bool end_of_route_, local_goal_reached_;
+ 	bool boot_safe;
+ 	waypoints_path_planner::waypointsfilepath waypoints_file_path_;
++	std::string last_minder_state_;
+ 
+ 
+ 
+@@ -666,6 +668,7 @@ private:
+ 	ros::Subscriber local_goal_reached_subscriber_;
+ 	ros::Subscriber lane_switch_subscriber_;
+ 	ros::Subscriber waypointinfo_subscriber_;
++	ros::Subscriber minder_state_subscriber_;
+ 
+ 
+ 	/*Publishers*/
+diff --git a/src/waypoints_path_planner.cpp b/src/waypoints_path_planner.cpp
+index af33fba..7d7e62a 100755
+--- a/src/waypoints_path_planner.cpp
++++ b/src/waypoints_path_planner.cpp
+@@ -135,6 +135,7 @@ WaypointsPathPlanner::WaypointsPathPlanner (QWidget * parent): rviz::Panel(paren
+ 	ipe_to_ads_subscriber_ = nh_.subscribe("/av_to_ads_trip_request", 10, & WaypointsPathPlanner::ipe_to_ads_callback, this);
+ 	lane_switch_subscriber_ = nh_.subscribe("/lane_switch", 10, & WaypointsPathPlanner::lane_switch_callback, this);
+ 	waypointinfo_subscriber_ = nh_.subscribe("/waypoint_info", 1, &WaypointsPathPlanner::waypoint_info_callback, this);
++	minder_state_subscriber_ = nh_.subscribe("/asm/minder_state", 1, &WaypointsPathPlanner::minder_state_callback, this);
+ 
+ 	/*Service Client*/
+ 	start_navigation_service_ = nh_.serviceClient < waypoints_path_planner::startNavigation > ("/start_navigation");
+@@ -816,7 +817,7 @@ WaypointsPathPlanner::WaypointsPathPlanner (QWidget * parent): rviz::Panel(paren
+ 	get_routes_from_file();
+ 
+ 	is_rviz_locked_unlocked_.data = true;
+-		lock_unlock_rviz_status_publisher_.publish(is_rviz_locked_unlocked_);
++	lock_unlock_rviz_status_publisher_.publish(is_rviz_locked_unlocked_);
+ 
+ 	/* Entry dialog for supervisor */
+ 
+@@ -1060,7 +1061,7 @@ void WaypointsPathPlanner::start_av_navigation_qslot(void)
+ 	// {
+ 	//     QMessageBox::information(this, "CAUTION", "POD ALREADY IN A ROUTE! WAIT FOR THE ROUTE TO COMPLETE .. OR NAVIGATION HAS SOME PROBLEMS", QMessageBox::Ok);
+ 	// }
+- }
++}
+ void WaypointsPathPlanner::cancel_navigation_qslot(void)
+ {
+ 	bool navigation_cancelled = wpplm.cancel_av_navigation_process(navigation_started_);
+@@ -2080,7 +2081,7 @@ void WaypointsPathPlanner::delete_no_go_zone_markers_in_file_and_rviz_qslot()
+ 		qDebug() << "Yes was clicked";
+ 		wppngzm.clear_no_go_zone_objects_before_loading_file();
+ 		wppngzm.save_waypoints_and_nogozones();
+-		} else {
++	} else {
+ 		qDebug() << "Yes was *not* clicked";
+ 	}
+ 	ROS_INFO_STREAM("clear no go zone markers !!!!!!");
+@@ -2360,9 +2361,9 @@ void WaypointsPathPlanner::plot_waypoints_2d_nav_goal(geometry_msgs::PoseStamped
+ 
+ 	if (counter_for_2d_nav_goal_ == 0) {
+ 		QMessageBox::information(this, "CAUTION",
+-			"OVERRIDING 2D NAV GOAL FOR WAYPOINT PLOTTING CAUSES MOVEBASE TO CRASH.\n"
+-			"CLOSE RVIZ AFTER ALL WAYPOINTS ARE PLOTTED AND THEN START NAVIGATION IN RVIZ AGAIN!",
+-			QMessageBox::Ok);
++				"OVERRIDING 2D NAV GOAL FOR WAYPOINT PLOTTING CAUSES MOVEBASE TO CRASH.\n"
++				"CLOSE RVIZ AFTER ALL WAYPOINTS ARE PLOTTED AND THEN START NAVIGATION IN RVIZ AGAIN!",
++				QMessageBox::Ok);
+ 	}
+ 
+ 	counter_for_2d_nav_goal_++;
+@@ -2463,235 +2464,241 @@ void WaypointsPathPlanner::local_goal_reached_subscriber_callback(std_msgs::Bool
+ 
+ void WaypointsPathPlanner::ipe_to_ads_callback(std_msgs::String msg)
+ {
+-        try
+-        {
+-            ROS_INFO("Received command: %s", msg.data.c_str());
+-            std::string received_message = msg.data;
+-            std::string first_two = received_message.substr(0, 2);
+-            std::string second_two = received_message.substr(2, 2);
+-            std::string first_four = received_message.substr(0, 4);
+-            std_msgs::String response_msg;
+-            std::string response;
+- 
+-            if (received_message.length() < 9)
+-            {
+-                switch (first_two[0])
+-                {
+-                case 'B':
+-                    switch (first_two[1])
+-                    {
+-                    case 'C':
+-                        cancel_navigation_qslot();
+-                        response = "bc--";
+-                        break;
+-                    case 'S':
+-                        start_av_navigation_qslot();
+-                        response = "bs--";
+-                        break;
+-                    default:
+-                        response = "nil_";
+-                        break;
+-                    }
+-                    break;
+-                case 'D':
+-                    if (first_two == "DR")
+-                    {
+-                        if (second_two == "00")
+-                        {
+-                            response = "dr00";
+-                        }
+-                        else if (second_two == "01")
+-                        {
+-                            set_button_state(run_route_1_file_, false);
+-                            response = "dr01";
+-                        }
+-                        else if (second_two == "02")
+-                        {
+-                            set_button_state(run_route_2_file_, false);
+-                            response = "dr02";
+-                        }
+-                        else if (second_two == "03")
+-                        {
+-                            set_button_state(run_route_3_file_, false);
+-                            response = "dr03";
+-                        }
+-                        else if (second_two == "04")
+-                        {
+-                            set_button_state(run_route_4_file_, false);
+-                            response = "dr04";
+-                        }
+-                        else
+-                        {
+-                            response = "nil_";
+-                        }
+-                    }
+-                    break;
+-                case 'E':
+-                    switch (first_two[1])
+-                    {
+-                    case 'R':
+-                        if (second_two == "00")
+-                        {
+-                            response = "er00";
+-                        }
+-                        else if (second_two == "01")
+-                        {
+-                            set_button_state(run_route_1_file_, true);
+-                            response = "er01";
+-                        }
+-                        else if (second_two == "02")
+-                        {
+-                            set_button_state(run_route_2_file_, true);
+-                            response = "er02";
+-                        }
+-                        else if (second_two == "03")
+-                        {
+-                            set_button_state(run_route_3_file_, true);
+-                            response = "er03";
+-                        }
+-                        else if (second_two == "04")
+-                        {
+-                            set_button_state(run_route_4_file_, true);
+-                            response = "er04";
+-                        }
+-                        else
+-                        {
+-                            response = "nil_";
+-                        }
+-                        break;
+-                    case 'V':
+-                        if (second_two == "PR" ||
+-                            second_two == "NO")
+-                        {
+-                            response = "ack_";
+-                        }
+-                        else
+-                        {
+-                            response = "nil_";
+-                        }
+-                        break;
+-                    default:
+-                        response = "nil_";
+-                        break;
+-                    }
+-                    break;
+-
+-                case 'L':
+-                    switch (first_two[1])
+-                    {
+-                    case 'R':
+-                        response = "nil_";
+-                        break;
+-                    case 'S':
+-                    	cancel_navigation_qslot();
+-                        if (second_two == "00")
+-                        {
+-                            response = "ls00";
+-                        }
+-                        else if (second_two == "01")
+-                        {
+-                            run_route_1_file_->click();
+-                            response = "ls01";
+-                        }
+-                        else if (second_two == "02")
+-                        {
+-                            run_route_2_file_->click();
+-                            response = "ls02";
+-                        }
+-                        else if (second_two == "03")
+-                        {
+-                            run_route_3_file_->click();
+-                            response = "ls03";
+-                        }
+-                        else if (second_two == "04")
+-                        {
+-                            run_route_4_file_->click();
+-                            response = "ls04";
+-                        }
+-                        else
+-                        {
+-                            response = "nil_";
+-                        }
+-                        break;
+-                    default:
+-                        response = "nil_";
+-                        break;
+-                    }
+-                    break;
+-
+-                case 'R':
+-                    switch (first_two[1])
+-                    {
+-                    case 'E':
+-                        response = "ack";
+-                        break;
+-                    case 'M':
+-                        response = "rm--";
+-                        break;
+-                    case 'N':
+-                        response = is_av_navigating_msg_.data ? "rn1-" : "rn0-";
+-                        break;
+-                    case 'O':
+-                        response = "ack";
+-                        break;
+-                    case 'R':
+-                        response = "rr--";
+-                        break;
+-                    case 'S':
+-                        response = "rs--";
+-                        break;
+-                    case 'T':
+-                        response = "rt--";
+-                        break;
+-                    case 'W':
+-                    {
+-                        float x_diff = adt_x - end_point_.position.x;
+-                        float y_diff = adt_y - end_point_.position.y;
+-                        float total_diff = sqrt(x_diff * x_diff + y_diff * y_diff);
+-                        try
+-                        {
+-                            if (total_diff <= 1.7)
+-                            {
+-                                response = "rw@@";
+-                            }
+-                            else
+-                            {
+-                                response = "rw" + int_to_hexstring(current_waypoint_index_);
+-                            }
+-                        }
+-                        catch (const std::exception &e)
+-                        {
+-                            response = "rw!!";
+-                        }
+-                        break;
+-                    }
+-
+-                    default:
+-                        response = "nil_";
+-                        break;
+-                    }
+-                    break;
+-
+-                case 'Z':
+-                    response = "ack_";
+-                    break;
+-                default:
+-                    response = "nil_";
+-                    break;
+-                }
+-            }
+-            else
+-            {
+-                response = "nil_";
+-            }
+- 
+-            response_msg.data = response;
+-            ads_to_ipe_publisher_.publish(response_msg);
+-        }
+-        catch (...)
+-        {
+-            ROS_INFO("done");
+-        }	
++	try
++	{
++		ROS_INFO("Received command: %s", msg.data.c_str());
++		std::string received_message = msg.data;
++		std::string first_two = received_message.substr(0, 2);
++		std::string second_two = received_message.substr(2, 2);
++		std::string first_four = received_message.substr(0, 4);
++		std_msgs::String response_msg;
++		std::string response;
++
++		if (received_message.length() < 9)
++		{
++			switch (first_two[0])
++			{
++			case 'B':
++			switch (first_two[1])
++			{
++			case 'C':
++			cancel_navigation_qslot();
++			response = "bc--";
++			break;
++			case 'S':
++				start_av_navigation_qslot();
++				response = "bs--";
++				break;
++			default:
++				response = "nil_";
++				break;
++			}
++			break;
++			case 'D':
++				if (first_two == "DR")
++				{
++					if (second_two == "00")
++					{
++						response = "dr00";
++					}
++					else if (second_two == "01")
++					{
++						set_button_state(run_route_1_file_, false);
++						response = "dr01";
++					}
++					else if (second_two == "02")
++					{
++						set_button_state(run_route_2_file_, false);
++						response = "dr02";
++					}
++					else if (second_two == "03")
++					{
++						set_button_state(run_route_3_file_, false);
++						response = "dr03";
++					}
++					else if (second_two == "04")
++					{
++						set_button_state(run_route_4_file_, false);
++						response = "dr04";
++					}
++					else
++					{
++						response = "nil_";
++					}
++				}
++				break;
++			case 'E':
++				switch (first_two[1])
++				{
++				case 'R':
++				if (second_two == "00")
++				{
++					response = "er00";
++				}
++				else if (second_two == "01")
++				{
++					set_button_state(run_route_1_file_, true);
++					response = "er01";
++				}
++				else if (second_two == "02")
++				{
++					set_button_state(run_route_2_file_, true);
++					response = "er02";
++				}
++				else if (second_two == "03")
++				{
++					set_button_state(run_route_3_file_, true);
++					response = "er03";
++				}
++				else if (second_two == "04")
++				{
++					set_button_state(run_route_4_file_, true);
++					response = "er04";
++				}
++				else
++				{
++					response = "nil_";
++				}
++				break;
++				case 'V':
++					if (second_two == "PR" ||
++							second_two == "NO")
++					{
++						response = "ack_";
++					}
++					else
++					{
++						response = "nil_";
++					}
++					break;
++				default:
++					response = "nil_";
++					break;
++				}
++				break;
++
++				case 'L':
++					switch (first_two[1])
++					{
++					case 'R':
++						response = "nil_";
++						break;
++					case 'S':
++						cancel_navigation_qslot();
++						if (second_two == "00")
++						{
++							response = "ls00";
++						}
++						else if (second_two == "01")
++						{
++							run_route_1_file_->click();
++							response = "ls01";
++						}
++						else if (second_two == "02")
++						{
++							run_route_2_file_->click();
++							response = "ls02";
++						}
++						else if (second_two == "03")
++						{
++							run_route_3_file_->click();
++							response = "ls03";
++						}
++						else if (second_two == "04")
++						{
++							run_route_4_file_->click();
++							response = "ls04";
++						}
++						else
++						{
++							response = "nil_";
++						}
++						break;
++					default:
++						response = "nil_";
++						break;
++					}
++					break;
++
++					case 'R':
++						switch (first_two[1])
++						{
++						case 'E':
++							response = "ack";
++							break;
++						case 'M':
++							response = "rm--";
++							break;
++						case 'N':
++							response = is_av_navigating_msg_.data ? "rn1-" : "rn0-";
++							break;
++						case 'O':
++							response = "ack";
++							break;
++						case 'R':
++							response = "rr--";
++							break;
++						case 'S':
++							response = "rs--";
++							break;
++						case 'T':
++							response = "rt--";
++							break;
++						case 'W':
++						{
++							float x_diff = adt_x - end_point_.position.x;
++							float y_diff = adt_y - end_point_.position.y;
++							float total_diff = sqrt(x_diff * x_diff + y_diff * y_diff);
++							try
++							{
++								if (total_diff <= 1.7)
++								{
++									response = "rw@@";
++								}
++								else
++								{
++									response = "rw" + int_to_hexstring(current_waypoint_index_);
++								}
++							}
++							catch (const std::exception &e)
++							{
++								response = "rw!!";
++							}
++							break;
++						}
++
++						default:
++							response = "nil_";
++							break;
++						}
++						break;
++
++						case 'Z':
++							response = "ack_";
++							break;
++						default:
++							response = "nil_";
++							break;
++			}
++		}
++		else
++		{
++			response = "nil_";
++		}
++
++		response_msg.data = response;
++		if(response!="nil_")
++		{
++			response_msg.data = last_minder_state_;
++		} else {
++			response_msg.data = response;
++		}
++		ads_to_ipe_publisher_.publish(response_msg);
++	}
++	catch (...)
++	{
++		ROS_INFO("done");
++	}
+ }
+ 
+ void WaypointsPathPlanner::lane_switch_callback(std_msgs::Bool msg)
+@@ -2715,7 +2722,10 @@ void WaypointsPathPlanner::lane_switch_callback(std_msgs::Bool msg)
+ 	}
+ 
+ }
+-
++void WaypointsPathPlanner::minder_state_callback(std_msgs::String msg)
++{
++	last_minder_state_ = msg.data;  // Store latest received state
++}
+ void WaypointsPathPlanner::waypoint_info_callback(waypoints_path_planner::waypointinfoarray msg)
+ {
+ 	for (int i = 0; i < msg.waypointinfodata.size(); i++)

@@ -1,0 +1,11 @@
+Routes:
+   - route:
+        Route: /home/maria/catkin_ws/src/interactive_waypoints/waypoints/UDL/Route_0/Route_0.yaml
+   - route:
+        Route: /home/maria/catkin_ws/src/interactive_waypoints/waypoints/UDL/Route_1/1.yaml
+   - route:
+        Route: /home/maria/catkin_ws/src/interactive_waypoints/waypoints/UDL/Route_2/2.yaml
+   - route:
+        Route: /home/maria/catkin_ws/src/interactive_waypoints/waypoints/UDL/Route_3/3.yaml
+   - route:
+        Route: /home/maria/catkin_ws/src/interactive_waypoints/waypoints/UDL/Route_4/4.yaml

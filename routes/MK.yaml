@@ -1,0 +1,5 @@
+Routes:
+   - route:
+        Route: /home/maria/catkin_ws/src/interactive_waypoints/waypoints/default_waypoint.yaml
+   - route:
+        Route: /home/maria/code/ros/Launchers/Pod/Waypoints/Test.yaml

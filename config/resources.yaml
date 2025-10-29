@@ -1,0 +1,58 @@
+toggle_button_lock_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/LockUnlockRviz/lock.png
+toggle_button_unlock_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/LockUnlockRviz/unlock.png
+ordering_auto_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Ordering/ordering_auto.gif
+ordering_manual_file : /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Ordering/ordering_manual.gif
+battery_charging_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Battery_stuff/Battery Charging.gif
+battery_depleted_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Battery_stuff/Battery Depleated.gif
+battery_full_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Battery_stuff/Battery Full .gif
+battery_full_plugged_in_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Battery_stuff/Battery Full Plugged In.gif
+battery_half_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Battery_stuff/Battery Half.gif
+battery_quarter_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Battery_stuff/Battery Quarter.gif
+battery_three_quarter_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Battery_stuff/Battery Three Quarter.gif
+battery_unknown_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Battery_stuff/Battery Unknown.gif
+battery_charger_plugged_in_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Battery_stuff/charger plugged in.gif
+autonomy_switch_on_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Autonomy/Autonomy enable switch on.gif
+autonomy_switch_off_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Autonomy/Autonomy enable switch off.gif
+autonomy_switch_unknown_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Autonomy/Autonomy enable switch unknown.gif
+dms_armed_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/DMS/DMS_Armed.gif
+dms_battery_removed_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/DMS/DMS_Bat_removed.gif
+dms_not_armed_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/DMS/DMS_Not_Armed.gif
+dms_not_initialised_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/DMS/DMS_Not_initialised.gif
+dms_unknown_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/DMS/DMS_Unknown.gif
+dtp_on_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/DTP/DTPon.gif
+dtp_off_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/DTP/DTPoff.gif
+dtp_unknown_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/DTP/DTP unknown.gif
+imu_connected_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/IMU/imu_resized/imu_connected.gif
+imu_not_connected_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/IMU/imu_resized/imu_not_connected.gif
+imu_unknown_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/IMU/imu_resized/imu_unknown.png
+bbr_full_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/BBR/BBR_Full.gif
+bbr_no_drive_in_bay: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/BBR/BBR_No_Drive_In_Bay.gif
+bbr_ok_0_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/BBR/BBR_OK_0.png
+bbr_ok_1_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/BBR/BBR_OK_1.png
+bbr_ok_2_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/BBR/BBR_OK_2.png
+bbr_ok_3_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/BBR/BBR_OK_3.png
+bbr_ok_4_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/BBR/BBR_OK_4.png
+bbr_stop_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/BBR/BBR_Stop.png
+bbr_unknown_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/BBR/BBR_Unknown.png
+time_machine_error_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/TimeMahine/TimeMachineERROR.png
+time_machine_ready_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/TimeMahine/TimeMachine-Ready.gif
+time_machine_writing_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/TimeMahine/TimeMachine-writing.gif
+lidar_connected_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/LIDAR/LIdar_Icon_Resized/lidars_connected.png
+lidar_not_connected_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/LIDAR/LIdar_Icon_Resized/lidars_not_connected.png
+navigation_paused_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/NAVIGATION/rsz_navigation_paused.png
+navigation_running_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/NAVIGATION/rsz_navigation_running.png
+navigation_stopped_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/NAVIGATION/rsz_navigation_stopped.png
+navigation_unknown_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/NAVIGATION/rsz_navigation_unknown.png
+covariance_error_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/COVARIANCE/rsz_1covarience_error.png
+covariance_ok_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/COVARIANCE/rsz_covarience_ok.png
+covariance_poor_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/COVARIANCE/rsz_covarience_poor.png
+covariance_unknown_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/COVARIANCE/rsz_covarience_unknown.png
+ads_temp_high_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/ADS_Temp/ADS_Temp_High.png
+ads_temp_ok_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/ADS_Temp/ADS_Temp_OK.png
+ads_temp_unknown_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/ADS_Temp/ADS_Temp_Unknown.png
+cpu_temp_high_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/ADS_Temp/CPU_Temp_High.png
+gpu_temp_high_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/ADS_Temp/GPU_Temp_High.png
+loading_arms_deployed_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Loading_Arms/Loading_Arms_Deployed.png
+loading_arms_retracted_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Loading_Arms/Loading_Arms_Retracted.png
+loading_arms_unknown_file: /home/aurrigo-ads/aurrigo_3d_navigation_20.04_ws/src/waypoints_path_planner/resources/Loading_Arms/Loading_Arms_Unknown.png
+
