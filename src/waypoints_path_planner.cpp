@@ -568,7 +568,9 @@ WaypointsPathPlanner::WaypointsPathPlanner (QWidget * parent): rviz::Panel(paren
 		}
 WaypointsPathPlanner::~WaypointsPathPlanner()
 {
-	// StatusMonitoringPanel is managed by std::unique_ptr and will be automatically cleaned up
+	// Destructor follows RAII principles. All owned resources, such as StatusMonitoringPanel,
+	// are managed by std::unique_ptr, ensuring proper cleanup and preventing memory leaks
+	// without the need for manual memory management.
 }
 
 void WaypointsPathPlanner::publish_waypoint_paths()
