@@ -68,6 +68,7 @@
 #include <sstream>
 #include <std_srvs/Trigger.h>
 #include <std_srvs/Empty.h>
+#include <memory>
 #include "boost/shared_ptr.hpp"
 #include "boost/filesystem.hpp"
 #include <boost/thread.hpp>
@@ -356,7 +357,7 @@ private:
 	QGridLayout * gridLayout_forwaypoint_panel_;
 
 	/* New Separated Components */
-	StatusMonitoringPanel* status_panel_;
+	std::unique_ptr<StatusMonitoringPanel> status_panel_;
 
 	QPushButton * load_waypoints_file_;
 	QPushButton * compute_segment_;

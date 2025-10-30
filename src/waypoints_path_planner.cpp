@@ -433,7 +433,7 @@ WaypointsPathPlanner::WaypointsPathPlanner (QWidget * parent): rviz::Panel(paren
 	connect(delete_no_go_zone_markers_in_file_and_rviz_, SIGNAL(released()), this, SLOT(delete_no_go_zone_markers_in_file_and_rviz_qslot()));
 
 	/* Initialize Status Monitoring Panel */
-	status_panel_ = new StatusMonitoringPanel(nh_, gridLayout);
+	status_panel_ = std::make_unique<StatusMonitoringPanel>(nh_, gridLayout);
 	status_panel_->initialize();
 
 	/* Message QEditline */
@@ -568,8 +568,7 @@ WaypointsPathPlanner::WaypointsPathPlanner (QWidget * parent): rviz::Panel(paren
 		}
 WaypointsPathPlanner::~WaypointsPathPlanner()
 {
-	// Clean up dynamically allocated status panel
-	delete status_panel_;
+	// StatusMonitoringPanel is managed by std::unique_ptr and will be automatically cleaned up
 }
 
 void WaypointsPathPlanner::publish_waypoint_paths()
